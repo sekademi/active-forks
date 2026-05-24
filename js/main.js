@@ -260,6 +260,7 @@ function fetchData() {
   const re = /[-_\w]+\/[-_.\w]+/;
 
   const urlRepo = getRepoFromUrl();
+  debugLog('fetchData start', { repo, urlRepo, useAllForks: getFetchAllForksSetting() });
 
   if (!urlRepo || urlRepo !== repo) {
     window.history.pushState('', '', `#${repo}`);
@@ -267,11 +268,14 @@ function fetchData() {
 
   if (re.test(repo)) {
     if (getFetchAllForksSetting()) {
+      debugLog('fetchData selected fetchAllForks', repo);
       fetchAllForksHandler(repo);
     } else {
+      debugLog('fetchData selected fetchAndShow', repo);
       fetchAndShow(repo);
     }
   } else {
+    debugLog('fetchData invalid repo', repo);
     showMsg(
       t('errorInvalid'),
       'danger'
@@ -280,6 +284,7 @@ function fetchData() {
 }
 
 function updateDT(data) {
+  debugLog('updateDT', { length: Array.isArray(data) ? data.length : 0 });
   window.latestForks = data || [];
 
   // Remove any alerts, if any:
@@ -299,6 +304,7 @@ function renderForkPages(pageMap) {
     .map(page => parseInt(page, 10))
     .sort((a, b) => a - b)
     .flatMap(page => pageMap[page] || []);
+  debugLog('renderForkPages', { pagesCount: pages.length, pages: Object.keys(pageMap).sort((a,b)=>a-b) });
   updateDT(pages);
 }
 
@@ -460,11 +466,14 @@ function fetchAndShow(repo) {
   setLoading(true);
   window.latestForks = [];
   window.forkTable.clear().draw();
+  debugLog('fetchAndShow start', repo);
 
   const cachedFirstPage = getCachedPage(repo, 1);
+  debugLog('fetchAndShow cache result', { cachedFirstPage: Array.isArray(cachedFirstPage) ? cachedFirstPage.length : cachedFirstPage });
   if (cachedFirstPage) {
     updateDT(cachedFirstPage);
     setLoading(false);
+    debugLog('fetchAndShow loaded from cache', repo);
     return Promise.resolve(cachedFirstPage);
   }
 
@@ -498,8 +507,10 @@ function fetchAndShow(repo) {
 }
 
 function fetchFirstPage(repo, cachedFirstPage) {
+  debugLog('fetchFirstPage start', repo);
   return fetch(`https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100&page=1`)
     .then(response => {
+      debugLog('fetchFirstPage response', { repo, status: response.status, ok: response.ok });
       const limit = response.headers.get('x-ratelimit-limit');
       const remaining = response.headers.get('x-ratelimit-remaining');
       const reset = response.headers.get('x-ratelimit-reset');
@@ -512,11 +523,13 @@ function fetchFirstPage(repo, cachedFirstPage) {
       return response.json();
     })
     .then(data => {
+      debugLog('fetchFirstPage got data', { repo, length: Array.isArray(data) ? data.length : 0 });
       setCachedPage(repo, 1, data);
       updateDT(data);
       return data;
     })
     .catch(error => {
+      debugLog('fetchFirstPage error', { repo, error: error.toString(), cachedFirstPage: !!cachedFirstPage });
       if (cachedFirstPage) {
         showToast(t('toastLoadedCachedData'));
         return cachedFirstPage;
@@ -528,12 +541,15 @@ function fetchFirstPage(repo, cachedFirstPage) {
 function fetchAllForksHandler(repoParam) {
   const repo = repoParam || getRepoFromUrl() || document.getElementById('q')?.value.replaceAll(' ', '');
   const re = /[-_\w]+\/[-_.\w]+/;
+  debugLog('fetchAllForksHandler start', { repo });
   if (!re.test(repo)) {
+    debugLog('fetchAllForksHandler invalid repo', repo);
     showMsg(t('errorInvalid'), 'danger');
     return;
   }
 
   if (window.currentFetchAbortController) {
+    debugLog('fetchAllForksHandler aborting previous fetch');
     window.currentFetchAbortController.abort();
   }
 
@@ -555,6 +571,7 @@ function fetchAllForksHandler(repoParam) {
   const nextPage = loadCachedPages(repo, (pageData, page) => {
     renderPage(pageData, page);
   });
+  debugLog('fetchAllForksHandler cache load complete', { repo, nextPage, pagesLoaded: Object.keys(pageMap).length });
 
   let fetchAllCompleted = false;
   fetchRateLimitData()
@@ -563,6 +580,7 @@ function fetchAllForksHandler(repoParam) {
         updateRateLimitUI(core.remaining, core.limit, core.reset);
       }
       if (core && core.remaining === 0) {
+        debugLog('fetchAllForksHandler rate limit exhausted', { repo, core });
         if (Object.keys(pageMap).length > 0) {
           showToast(t('toastLoadedCachedData'));
           return Promise.resolve();
@@ -570,6 +588,7 @@ function fetchAllForksHandler(repoParam) {
         showMsg(`${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`, 'danger');
         throw new Error('rate-limit-exceeded');
       }
+      debugLog('fetchAllForksHandler proceeding to progressive fetch', { repo, nextPage });
       return fetchAllForksProgressively(repo, (pageData, allData, page) => {
         renderPage(pageData, page);
       }, nextPage, signal);
@@ -578,6 +597,7 @@ function fetchAllForksHandler(repoParam) {
       fetchAllCompleted = true;
     })
     .catch(error => {
+      debugLog('fetchAllForksHandler catch', { repo, error: error.toString(), name: error.name });
       if (error.name === 'AbortError') {
         showToast(t('toastFetchCanceled'));
         return;
@@ -608,6 +628,7 @@ function fetchAllForksHandler(repoParam) {
 }
 
 function showMsg(msg, type) {
+  debugLog('showMsg', { type, msg });
   let alert_type = 'alert-info';
 
   if (type === 'danger') {
@@ -642,12 +663,19 @@ function makeTableKeyboardScrollable() {
 }
 
 function showToast(message) {
+  debugLog('showToast', { message });
   const toastEl = document.getElementById('liveToast');
   const toastMsg = document.getElementById('toast-message');
   if (toastEl && toastMsg) {
     toastMsg.textContent = message;
     const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
     toast.show();
+  }
+}
+
+function debugLog(...args) {
+  if (window && window.console && typeof window.console.log === 'function') {
+    console.log('[active-forks]', ...args);
   }
 }
 
@@ -703,6 +731,7 @@ function initFetchAllForksSwitch() {
 }
 
 function setLoading(isLoading) {
+  debugLog('setLoading', { isLoading });
   const spinner = document.getElementById('spinner');
   const findBtn = document.getElementById('find');
   const fetchAllForksSwitch = document.getElementById('fetch-all-switch');
@@ -719,6 +748,7 @@ window.cachedRateLimitData = null;
 window.cachedRateLimitReset = 0;
 window.currentFetchAbortController = null;
 window.latestForks = [];
+window.localStorageCacheDisabled = false;
 // Cache TTL in seconds (default 1 hour)
 window.PAGE_CACHE_TTL = 60 * 60;
 
@@ -727,12 +757,24 @@ function cacheKeyFor(repo, page) {
 }
 
 function setCachedPage(repo, page, data) {
+  if (window.localStorageCacheDisabled) {
+    debugLog('setCachedPage skipped because cache is disabled', { repo, page });
+    return;
+  }
+
   try {
     const key = cacheKeyFor(repo, page);
     const item = { ts: Date.now(), data };
     localStorage.setItem(key, JSON.stringify(item));
+    debugLog('setCachedPage', { repo, page, length: Array.isArray(data) ? data.length : 0 });
   } catch (e) {
-    // ignore quota errors
+    const errorText = e && e.toString ? e.toString() : String(e);
+    debugLog('setCachedPage failed', { repo, page, error: errorText });
+    if (errorText.toLowerCase().includes('quota') ||
+        (e && e.name && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED'))) {
+      window.localStorageCacheDisabled = true;
+      debugLog('localStorage cache disabled due to quota exceeded');
+    }
     console.error('Failed to set cache', e);
   }
 }
@@ -741,12 +783,17 @@ function getCachedPage(repo, page) {
   try {
     const key = cacheKeyFor(repo, page);
     const raw = localStorage.getItem(key);
+    debugLog('getCachedPage raw', { repo, page, raw: raw ? raw.slice(0, 100) : null });
     if (!raw) return null;
     const item = JSON.parse(raw);
 
-    if (!item) return null;
+    if (!item) {
+      debugLog('getCachedPage parsed item empty', { repo, page });
+      return null;
+    }
 
     if (Array.isArray(item)) {
+      debugLog('getCachedPage old-array-format', { repo, page, length: item.length });
       return item;
     }
 
@@ -755,12 +802,15 @@ function getCachedPage(repo, page) {
         const ageSec = (Date.now() - item.ts) / 1000;
         if (ageSec > (window.PAGE_CACHE_TTL || 3600)) {
           localStorage.removeItem(key);
+          debugLog('getCachedPage expired', { repo, page, ageSec });
           return null;
         }
       }
+      debugLog('getCachedPage ok', { repo, page, length: item.data.length });
       return item.data;
     }
 
+    debugLog('getCachedPage unsupported format', { repo, page, item });
     return null;
   } catch (e) {
     console.error('Failed to read cache', e);
@@ -769,10 +819,12 @@ function getCachedPage(repo, page) {
 }
 
 function loadCachedPages(repo, onPage) {
+  debugLog('loadCachedPages start', { repo });
   const pages = [];
   let page = 1;
   while (true) {
     const cached = getCachedPage(repo, page);
+    debugLog('loadCachedPages page', { repo, page, cachedLength: Array.isArray(cached) ? cached.length : 0 });
     if (!cached || !Array.isArray(cached) || cached.length === 0) break;
     pages.push(...cached);
     if (typeof onPage === 'function') {
@@ -781,6 +833,7 @@ function loadCachedPages(repo, onPage) {
     if (cached.length < 100) break;
     page += 1;
   }
+  debugLog('loadCachedPages done', { repo, nextPage: page });
   return page;
 }
 
@@ -853,11 +906,14 @@ function updateRateLimitUI(remaining, limit, reset) {
 function fetchRateLimitData() {
   const now = Math.floor(Date.now() / 1000);
   if (window.cachedRateLimitPromise && (window.cachedRateLimitReset === 0 || now < window.cachedRateLimitReset)) {
+    debugLog('fetchRateLimitData using cached promise', { now, reset: window.cachedRateLimitReset });
     return window.cachedRateLimitPromise;
   }
 
+  debugLog('fetchRateLimitData fetching fresh rate limit');
   const promise = fetch('https://api.github.com/rate_limit')
     .then(response => {
+      debugLog('fetchRateLimitData response', { ok: response.ok, status: response.status });
       if (!response.ok) throw new Error('RateLimitFetchFailed');
       return response.json();
     })
@@ -966,8 +1022,10 @@ function fetchAllForks(repo) {
         return response.json().then(data => ({ data, link: response.headers.get('link'), page }));
       })
       .then(({ data, link, page }) => {
-        // cache this page
-        setCachedPage(repo, page, data);
+        // Cache only the first page to avoid localStorage quota exhaustion
+        if (page === 1) {
+          setCachedPage(repo, page, data);
+        }
         results.push(...data);
         const parsed = parseLinkHeader(link);
         if (parsed.next) {
@@ -983,6 +1041,7 @@ function fetchAllForks(repo) {
 function fetchAllForksProgressively(repo, onPage, startPage = 1, signal) {
   const baseUrl = `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`;
   const results = [];
+  debugLog('fetchAllForksProgressively start', { repo, startPage });
 
   function fetchPage(url) {
     let urlObj;
@@ -996,6 +1055,7 @@ function fetchAllForksProgressively(repo, onPage, startPage = 1, signal) {
       const p = urlObj.searchParams.get('page');
       if (p) page = parseInt(p, 10) || 1;
     }
+    debugLog('fetchAllForksProgressively fetchPage', { repo, page, url, startPage });
     if (page < startPage) {
       const nextUrl = urlObj ? new URL(url) : null;
       if (nextUrl) {
@@ -1005,12 +1065,14 @@ function fetchAllForksProgressively(repo, onPage, startPage = 1, signal) {
       return Promise.resolve(results);
     }
     const cached = getCachedPage(repo, page);
+    debugLog('fetchAllForksProgressively cache check', { repo, page, cachedLength: Array.isArray(cached) ? cached.length : 0 });
     if (cached) {
       results.push(...cached);
       if (typeof onPage === 'function') {
         onPage(cached, results.slice(), page, true);
       }
       if (cached.length < 100) {
+        debugLog('fetchAllForksProgressively cached page end', { repo, page });
         return Promise.resolve(results);
       }
       const nextUrl = urlObj ? new URL(url) : null;
@@ -1021,6 +1083,7 @@ function fetchAllForksProgressively(repo, onPage, startPage = 1, signal) {
       return Promise.resolve(results);
     }
 
+    debugLog('fetchAllForksProgressively network fetch', { repo, page, url });
     return fetch(url, { signal })
       .then(response => {
         const limit = response.headers.get('x-ratelimit-limit');
@@ -1035,7 +1098,9 @@ function fetchAllForksProgressively(repo, onPage, startPage = 1, signal) {
         return response.json().then(data => ({ data, link: response.headers.get('link'), page }));
       })
       .then(({ data, link, page }) => {
-        setCachedPage(repo, page, data);
+        if (page === 1) {
+          setCachedPage(repo, page, data);
+        }
         results.push(...data);
         if (typeof onPage === 'function') {
           onPage(data, results.slice(), page, false);
