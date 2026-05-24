@@ -271,7 +271,7 @@ function updateDT(data) {
   // Format dataset and redraw DataTable. Use second index for key name
   const forks = [];
   for (let fork of data) {
-    fork.repoLink = `<a href="https://github.com/${fork.full_name}">${t('colLink')}</a>`;
+    fork.repoLink = fork.full_name;
     fork.ownerName = `<img src="${fork.owner.avatar_url || 'https://avatars.githubusercontent.com/u/0?v=4'}&s=48" width="24" height="24" class="me-2 rounded-circle" />${fork.owner ? fork.owner.login : '<strike><em>Unknown</em></strike>'}`;
     forks.push(fork);
   }
@@ -348,15 +348,21 @@ function initDT() {
     columns: window.columnNamesMap.map(colNM => {
       return {
         title: colNM[0],
-        render:
-          colNM[1] === 'pushed_at'
-            ? (data, type, _row) => {
-                if (type === 'display') {
-                  return howLongAgo(data);
-                }
-                return data;
-              }
-            : null,
+        render: (data, type, _row) => {
+          if (colNM[1] === 'pushed_at') {
+            if (type === 'display') {
+              return howLongAgo(data);
+            }
+            return data;
+          }
+          if (colNM[1] === 'repoLink') {
+            if (type === 'display') {
+              return `<a href="https://github.com/${data}">${t('colLink')}</a>`;
+            }
+            return data;
+          }
+          return data;
+        },
       };
     }),
     order: [[sortColumnIdx, 'desc']],
