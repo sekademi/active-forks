@@ -57,6 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportJsonBtn = document.getElementById('export-json');
   if (exportJsonBtn) exportJsonBtn.addEventListener('click', exportJSON);
 
+  const cancelFetchBtn = document.getElementById('cancel-fetch');
+  if (cancelFetchBtn) cancelFetchBtn.addEventListener('click', cancelFetchAllForks);
+
   initFetchAllForksSwitch();
 
   // Check if we should show the reset settings toast
@@ -530,7 +533,15 @@ function fetchAllForksHandler(repoParam) {
     return;
   }
 
+  if (window.currentFetchAbortController) {
+    window.currentFetchAbortController.abort();
+  }
+
+  window.currentFetchAbortController = new AbortController();
+  const signal = window.currentFetchAbortController.signal;
+
   setLoading(true);
+  showCancelFetchButton(true);
   window.latestForks = [];
   window.forkTable.clear().draw();
 
@@ -561,12 +572,16 @@ function fetchAllForksHandler(repoParam) {
       }
       return fetchAllForksProgressively(repo, (pageData, allData, page) => {
         renderPage(pageData, page);
-      }, nextPage);
+      }, nextPage, signal);
     })
     .then(() => {
       fetchAllCompleted = true;
     })
     .catch(error => {
+      if (error.name === 'AbortError') {
+        showToast(t('toastFetchCanceled'));
+        return;
+      }
       if (error.message === 'rate-limit-exceeded') {
         return;
       }
@@ -584,6 +599,8 @@ function fetchAllForksHandler(repoParam) {
     })
     .finally(() => {
       setLoading(false);
+      showCancelFetchButton(false);
+      window.currentFetchAbortController = null;
       if (fetchAllCompleted) {
         showToast(t('toastAllForksFetchComplete'));
       }
@@ -634,6 +651,25 @@ function showToast(message) {
   }
 }
 
+function showCancelFetchButton(show) {
+  const cancelFetchBtn = document.getElementById('cancel-fetch');
+  if (!cancelFetchBtn) return;
+  cancelFetchBtn.classList.toggle('d-none', !show);
+}
+
+function cancelFetchAllForks() {
+  const fetchAllForksSwitch = document.getElementById('fetch-all-switch');
+  if (fetchAllForksSwitch) {
+    fetchAllForksSwitch.checked = false;
+    setFetchAllForksSetting(false);
+  }
+  if (window.currentFetchAbortController) {
+    window.currentFetchAbortController.abort();
+    window.currentFetchAbortController = null;
+  }
+  showCancelFetchButton(false);
+}
+
 function getFetchAllForksSetting() {
   try {
     return localStorage.getItem('fetch_all_forks') === 'true';
@@ -681,6 +717,7 @@ window.currentResetTimestamp = null;
 window.cachedRateLimitPromise = null;
 window.cachedRateLimitData = null;
 window.cachedRateLimitReset = 0;
+window.currentFetchAbortController = null;
 window.latestForks = [];
 // Cache TTL in seconds (default 1 hour)
 window.PAGE_CACHE_TTL = 60 * 60;
@@ -707,13 +744,24 @@ function getCachedPage(repo, page) {
     if (!raw) return null;
     const item = JSON.parse(raw);
 
-    if (!item || !item.ts) return null;
-    const ageSec = (Date.now() - item.ts) / 1000;
-    if (ageSec > (window.PAGE_CACHE_TTL || 3600)) {
-      localStorage.removeItem(key);
-      return null;
+    if (!item) return null;
+
+    if (Array.isArray(item)) {
+      return item;
     }
-    return item.data || null;
+
+    if (item.data && Array.isArray(item.data)) {
+      if (item.ts) {
+        const ageSec = (Date.now() - item.ts) / 1000;
+        if (ageSec > (window.PAGE_CACHE_TTL || 3600)) {
+          localStorage.removeItem(key);
+          return null;
+        }
+      }
+      return item.data;
+    }
+
+    return null;
   } catch (e) {
     console.error('Failed to read cache', e);
     return null;
@@ -932,7 +980,7 @@ function fetchAllForks(repo) {
   return fetchPage(baseUrl);
 }
 
-function fetchAllForksProgressively(repo, onPage, startPage = 1) {
+function fetchAllForksProgressively(repo, onPage, startPage = 1, signal) {
   const baseUrl = `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`;
   const results = [];
 
@@ -973,7 +1021,7 @@ function fetchAllForksProgressively(repo, onPage, startPage = 1) {
       return Promise.resolve(results);
     }
 
-    return fetch(url)
+    return fetch(url, { signal })
       .then(response => {
         const limit = response.headers.get('x-ratelimit-limit');
         const remaining = response.headers.get('x-ratelimit-remaining');
