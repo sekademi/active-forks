@@ -415,9 +415,21 @@ function fetchAndShow(repo) {
   repo = repo.replace(/^\/+/, ''); // remove leading slashes
   repo = repo.replace(/\/+$/, ''); // remove trailing slashes
 
-  fetch(
+  const forkRequest = () => fetch(
     `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`
-  )
+  );
+
+  fetchRateLimitData()
+    .then(core => {
+      if (core && core.remaining !== null && core.limit !== null) {
+        updateRateLimitUI(core.remaining, core.limit, core.reset);
+      }
+      if (core && core.remaining === 0) {
+        showMsg(`${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`, 'danger');
+        throw new Error('rate-limit-exceeded');
+      }
+      return forkRequest();
+    })
     .then(response => {
       const limit = response.headers.get('x-ratelimit-limit');
       const remaining = response.headers.get('x-ratelimit-remaining');
@@ -425,18 +437,24 @@ function fetchAndShow(repo) {
       if (limit !== null && remaining !== null) {
         updateRateLimitUI(parseInt(remaining, 10), parseInt(limit, 10), parseInt(reset, 10));
       }
-      if (!response.ok) throw Error(response.statusText);
+      if (!response.ok) {
+        throw Error(response.statusText || `HTTP ${response.status}`);
+      }
       return response.json();
     })
     .then(data => {
       updateDT(data);
     })
     .catch(error => {
+      if (error.message === 'rate-limit-exceeded') {
+        return;
+      }
+
       const msg =
         error.toString().indexOf('Forbidden') >= 0
-          ? t('errorRateLimit')
+          ? `${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`
           : error;
-      showMsg(`${msg}. Additional info in console`, 'danger');
+      showMsg(`${msg}. ${t('messageTryAgain')}`, 'danger');
       console.error(error);
     });
 }
@@ -488,6 +506,40 @@ function showToast(message) {
 // --- Rate Limit System ---
 
 window.currentResetTimestamp = null;
+window.cachedRateLimitPromise = null;
+window.cachedRateLimitData = null;
+window.cachedRateLimitReset = 0;
+
+function cacheRateLimitData(core) {
+  if (!core || typeof core.remaining !== 'number' || typeof core.limit !== 'number') return;
+  window.cachedRateLimitData = core;
+  window.cachedRateLimitPromise = Promise.resolve(core);
+  window.cachedRateLimitReset = core.reset || Math.floor(Date.now() / 1000) + 60;
+}
+
+function refreshRateLimitDisplay() {
+  if (!window.cachedRateLimitData) return;
+  const { remaining, limit, reset } = window.cachedRateLimitData;
+  updateRateLimitUI(remaining, limit, reset);
+}
+
+function getRateLimitTimeText(reset) {
+  const secondsLeft = Math.max(0, reset - Math.floor(Date.now() / 1000));
+  const minutesLeft = Math.max(0, Math.ceil(secondsLeft / 60));
+  if (minutesLeft > 0) {
+    return `${minutesLeft} ${t('minutes')}`;
+  }
+  return `${secondsLeft} ${t('seconds')}`;
+}
+
+function getRateLimitFooterText(remaining, limit, reset) {
+  const timeStr = getRateLimitTimeText(reset);
+  const template = t('rateLimitFooterText');
+  return template
+    .replace('{remaining}', remaining)
+    .replace('{limit}', limit)
+    .replace('{time}', timeStr);
+}
 
 function updateRateLimitUI(remaining, limit, reset) {
   const container = document.getElementById('rate-limit-container');
@@ -497,6 +549,7 @@ function updateRateLimitUI(remaining, limit, reset) {
   if (!container || !progress || !text) return;
 
   window.currentResetTimestamp = reset;
+  cacheRateLimitData({ remaining, limit, reset });
 
   const pct = limit > 0 ? (remaining / limit) * 100 : 0;
   progress.style.width = `${pct}%`;
@@ -512,37 +565,54 @@ function updateRateLimitUI(remaining, limit, reset) {
     progress.classList.add('bg-danger');
   }
 
-  text.textContent = `${remaining}/${limit}`;
+  text.textContent = getRateLimitFooterText(remaining, limit, reset);
 
   // Update initial title tooltip
   if (reset) {
-    const secondsLeft = reset - Math.floor(Date.now() / 1000);
-    const minutesLeft = Math.max(0, Math.ceil(secondsLeft / 60));
-    let timeStr = '';
-    if (minutesLeft > 0) {
-      timeStr = `${minutesLeft} ${t('minutes')}`;
-    } else {
-      const secs = Math.max(0, secondsLeft);
-      timeStr = `${secs} ${t('seconds')}`;
-    }
     const tooltipTemplate = t('rateLimitTooltip');
-    container.setAttribute('title', tooltipTemplate.replace('{time}', timeStr));
+    container.setAttribute('title', tooltipTemplate.replace('{time}', getRateLimitTimeText(reset)));
   }
 
   container.style.opacity = '1';
 }
 
-function fetchRateLimit() {
-  fetch('https://api.github.com/rate_limit')
+function fetchRateLimitData() {
+  const now = Math.floor(Date.now() / 1000);
+  if (window.cachedRateLimitPromise && (window.cachedRateLimitReset === 0 || now < window.cachedRateLimitReset)) {
+    return window.cachedRateLimitPromise;
+  }
+
+  const promise = fetch('https://api.github.com/rate_limit')
     .then(response => {
-      if (response.ok) return response.json();
-      throw new Error();
+      if (!response.ok) throw new Error('RateLimitFetchFailed');
+      return response.json();
     })
     .then(data => {
       if (data && data.resources && data.resources.core) {
         const core = data.resources.core;
-        updateRateLimitUI(core.remaining, core.limit, core.reset);
+        const result = {
+          remaining: core.remaining,
+          limit: core.limit,
+          reset: core.reset,
+        };
+        cacheRateLimitData(result);
+        return result;
       }
+      throw new Error('RateLimitMalformed');
+    })
+    .catch(err => {
+      window.cachedRateLimitPromise = null;
+      throw err;
+    });
+
+  window.cachedRateLimitPromise = promise;
+  return promise;
+}
+
+function fetchRateLimit() {
+  fetchRateLimitData()
+    .then(core => {
+      updateRateLimitUI(core.remaining, core.limit, core.reset);
     })
     .catch(err => console.error('Failed to fetch rate limit:', err));
 }

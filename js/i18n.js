@@ -31,6 +31,9 @@ const translations = {
     toastSettingsReset: 'All settings have been reset to defaults!',
     rateLimit: 'API Rate Limit:',
     rateLimitTooltip: 'Resets in {time}',
+    errorRateLimitMessage: 'No requests left. Wait until the limit resets or use an authenticated GitHub request.',
+    messageTryAgain: 'Please try again later.',
+    rateLimitFooterText: '{remaining}/{limit} remaining · resets in {time}',
     minutes: 'minutes',
     seconds: 'seconds',
   },
@@ -66,6 +69,9 @@ const translations = {
     toastSettingsReset: 'Tüm ayarlar varsayılana sıfırlandı!',
     rateLimit: 'API İstek Limiti:',
     rateLimitTooltip: '{time} içinde sıfırlanacak',
+    errorRateLimitMessage: 'İstek kalmadı. Lütfen limit sıfırlanana kadar bekleyin veya kimlik doğrulamalı GitHub isteği kullanın.',
+    messageTryAgain: 'Lütfen daha sonra tekrar deneyin.',
+    rateLimitFooterText: '{remaining}/{limit} kaldı · {time} içinde sıfırlanır',
     minutes: 'dakika',
     seconds: 'saniye',
   },
@@ -101,6 +107,9 @@ const translations = {
     toastSettingsReset: 'Alle Einstellungen wurden zurückgesetzt!',
     rateLimit: 'API-Ratenlimit:',
     rateLimitTooltip: 'Wird in {time} zurückgesetzt',
+    errorRateLimitMessage: 'Keine Anfragen mehr übrig. Bitte warten Sie, bis das Limit zurückgesetzt ist, oder verwenden Sie eine authentifizierte GitHub-Anfrage.',
+    messageTryAgain: 'Bitte versuchen Sie es später erneut.',
+    rateLimitFooterText: '{remaining}/{limit} verfügbar · {time} bis zur Rücksetzung',
     minutes: 'Minuten',
     seconds: 'Sekunden',
   },
@@ -136,6 +145,9 @@ const translations = {
     toastSettingsReset: '所有设置已重置为默认值！',
     rateLimit: 'API 速率限制：',
     rateLimitTooltip: '{time} 后重置',
+    errorRateLimitMessage: '没有剩余请求。请等待限额重置，或使用经过身份验证的 GitHub 请求。',
+    messageTryAgain: '请稍后再试。',
+    rateLimitFooterText: '{remaining}/{limit} 可用 · {time} 后重置',
     minutes: '分钟',
     seconds: '秒',
   },
@@ -186,4 +198,7 @@ function setLanguage(lang) {
     console.error('localStorage access denied:', e);
   }
   applyTranslations();
+  if (window.refreshRateLimitDisplay) {
+    window.refreshRateLimitDisplay();
+  }
 }
