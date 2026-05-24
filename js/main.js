@@ -1,14 +1,66 @@
 window.addEventListener('load', () => {
   initTheme();
+  initFontSize();
   initLangToggle();
   applyTranslations();
   initDT();
+
+  // Handle click on the example repo text in search label
+  document.addEventListener('click', e => {
+    if (e.target && e.target.id === 'example-repo') {
+      const qInput = document.getElementById('q');
+      if (qInput) {
+        qInput.value = 'techgaun/active-forks';
+        fetchData();
+      }
+    }
+  });
+
+  // Handle click on the filter toggle button
+  const filterToggle = document.getElementById('filter-toggle');
+  if (filterToggle) {
+    filterToggle.addEventListener('click', () => {
+      const sb = document.querySelector('.dtsb-searchBuilder');
+      if (sb) {
+        sb.classList.toggle('dtsb-collapsed');
+      }
+    });
+  }
+
+  // Handle click on the reset settings button
+  const resetSettingsBtn = document.getElementById('reset-settings');
+  if (resetSettingsBtn) {
+    resetSettingsBtn.addEventListener('click', () => {
+      try {
+        localStorage.removeItem('theme');
+        localStorage.removeItem('font_size_preference');
+        localStorage.removeItem('lang');
+        localStorage.removeItem('dt_page_length');
+        sessionStorage.setItem('show_reset_toast', 'true');
+      } catch (e) {
+        console.error('localStorage access denied:', e);
+      }
+      location.reload();
+    });
+  }
 
   const repo = getRepoFromUrl();
 
   if (repo) {
     document.getElementById('q').value = repo;
     fetchData();
+  }
+
+  // Check if we should show the reset settings toast
+  try {
+    if (sessionStorage.getItem('show_reset_toast') === 'true') {
+      sessionStorage.removeItem('show_reset_toast');
+      setTimeout(() => {
+        showToast(t('toastSettingsReset'));
+      }, 300);
+    }
+  } catch (e) {
+    console.error('sessionStorage access denied:', e);
   }
 });
 
@@ -20,8 +72,12 @@ document.getElementById('form').addEventListener('submit', e => {
 // --- Theme System ---
 
 function getPreferredTheme() {
-  const stored = localStorage.getItem('theme');
-  if (stored) return stored;
+  try {
+    const stored = localStorage.getItem('theme');
+    if (stored) return stored;
+  } catch (e) {
+    console.error('localStorage access denied:', e);
+  }
   return 'auto';
 }
 
@@ -33,9 +89,13 @@ function getEffectiveTheme(theme) {
 }
 
 function setTheme(theme) {
-  localStorage.setItem('theme', theme);
+  try {
+    localStorage.setItem('theme', theme);
+  } catch (e) {
+    console.error('localStorage access denied:', e);
+  }
   const effective = getEffectiveTheme(theme);
-  document.body.setAttribute('data-bs-theme', effective);
+  document.documentElement.setAttribute('data-bs-theme', effective);
   updateThemeIcon(theme);
   updateThemeMenuActive(theme);
 }
@@ -43,8 +103,14 @@ function setTheme(theme) {
 function updateThemeIcon(theme) {
   const iconEl = document.getElementById('theme-icon');
   if (!iconEl) return;
-  const icons = { light: '☀️', dark: '🌙', auto: '🖥️' };
-  iconEl.textContent = icons[theme] || '🌓';
+  iconEl.className = 'fa-solid'; // Reset to base FontAwesome class
+  if (theme === 'light') {
+    iconEl.classList.add('fa-sun');
+  } else if (theme === 'dark') {
+    iconEl.classList.add('fa-moon');
+  } else {
+    iconEl.classList.add('fa-circle-half-stroke');
+  }
 }
 
 function updateThemeMenuActive(theme) {
@@ -59,8 +125,12 @@ function initTheme() {
 
   // Listen for OS theme changes when in auto mode
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (localStorage.getItem('theme') === 'auto') {
-      document.body.setAttribute('data-bs-theme', getEffectiveTheme('auto'));
+    try {
+      if (localStorage.getItem('theme') === 'auto') {
+        document.documentElement.setAttribute('data-bs-theme', getEffectiveTheme('auto'));
+      }
+    } catch (e) {
+      document.documentElement.setAttribute('data-bs-theme', getEffectiveTheme('auto'));
     }
   });
 
@@ -68,6 +138,53 @@ function initTheme() {
   document.querySelectorAll('[data-theme]').forEach(btn => {
     btn.addEventListener('click', () => {
       setTheme(btn.getAttribute('data-theme'));
+      showToast(t('toastThemeUpdated'));
+    });
+  });
+}
+
+// --- Font Size System ---
+
+function getPreferredFontSize() {
+  try {
+    const stored = localStorage.getItem('font_size_preference');
+    if (stored) return stored;
+  } catch (e) {
+    console.error('localStorage access denied:', e);
+  }
+  return 'normal';
+}
+
+function setFontSize(size) {
+  try {
+    localStorage.setItem('font_size_preference', size);
+  } catch (e) {
+    console.error('localStorage access denied:', e);
+  }
+
+  let scale = '100%';
+  if (size === 'small') scale = '90%';
+  if (size === 'large') scale = '120%';
+  if (size === 'xlarge') scale = '145%';
+
+  document.documentElement.style.fontSize = scale;
+  updateFontSizeMenuActive(size);
+}
+
+function updateFontSizeMenuActive(size) {
+  document.querySelectorAll('[data-font-size]').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-font-size') === size);
+  });
+}
+
+function initFontSize() {
+  const size = getPreferredFontSize();
+  setFontSize(size);
+
+  document.querySelectorAll('[data-font-size]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setFontSize(btn.getAttribute('data-font-size'));
+      showToast(t('toastFontSizeUpdated'));
     });
   });
 }
@@ -75,21 +192,31 @@ function initTheme() {
 // --- Language Toggle ---
 
 function initLangToggle() {
-  const btn = document.getElementById('lang-toggle');
-  if (!btn) return;
-  updateLangButton(btn);
-  btn.addEventListener('click', () => {
-    const current = getLanguage();
-    const next = current === 'en' ? 'tr' : 'en';
-    setLanguage(next);
-    updateLangButton(btn);
-    rebuildDTColumns();
+  updateLangButton();
+
+  // Add click listeners to language dropdown items
+  document.querySelectorAll('[data-lang]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const selectedLang = btn.getAttribute('data-lang');
+      setLanguage(selectedLang);
+      updateLangButton();
+      rebuildDTColumns();
+      showToast(t('toastLangUpdated'));
+    });
   });
 }
 
-function updateLangButton(btn) {
-  const lang = getLanguage();
-  btn.textContent = lang.toUpperCase();
+function updateLangButton() {
+  const current = getLanguage();
+  const currentSpan = document.getElementById('lang-current');
+  if (currentSpan) {
+    currentSpan.textContent = current.toUpperCase();
+  }
+
+  // Update active class in language menu
+  document.querySelectorAll('[data-lang]').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-lang') === current);
+  });
 }
 
 // --- DataTable ---
@@ -183,8 +310,18 @@ function initDT() {
     .map(pair => pair[0])
     .indexOf(sortColName);
 
+  // Retrieve page length preference from localStorage
+  let savedLength = 100;
+  try {
+    const stored = localStorage.getItem('dt_page_length');
+    if (stored) savedLength = parseInt(stored, 10);
+  } catch (e) {
+    console.error('localStorage access denied:', e);
+  }
+
   // Use first index for readable column name
   window.forkTable = $('#forkTable').DataTable({
+    pageLength: savedLength,
     columns: window.columnNamesMap.map(colNM => {
       return {
         title: colNM[0],
@@ -205,9 +342,24 @@ function initDT() {
       // all options at default
     }
   });
+
+  // Listen to page length change and save preference
+  $('#forkTable').on('length.dt', (e, settings, len) => {
+    try {
+      const oldLen = localStorage.getItem('dt_page_length');
+      if (oldLen !== String(len)) {
+        localStorage.setItem('dt_page_length', len);
+        showToast(t('toastPageLengthUpdated'));
+      }
+    } catch (err) {
+      console.error('localStorage access denied:', err);
+    }
+  });
+
   let table = window.forkTable;
-  new $.fn.dataTable.SearchBuilder(table, {});
-  table.searchBuilder.container().prependTo(table.table().container());
+  const sbContainer = table.searchBuilder.container();
+  sbContainer.prependTo(table.table().container());
+  sbContainer.addClass('dtsb-collapsed');
   makeTableKeyboardScrollable();
 }
 
@@ -271,9 +423,7 @@ function showMsg(msg, type) {
 
   document.getElementById('data-body').innerHTML = `
         <div class="alert ${alert_type} alert-dismissible fade show" role="alert">
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             ${msg}
         </div>
     `;
@@ -291,4 +441,14 @@ function makeTableKeyboardScrollable() {
   tableContainer.setAttribute('role', 'region');
   tableContainer.setAttribute('tabindex', '0');
   tableContainer.classList.add('table-responsive');
+}
+
+function showToast(message) {
+  const toastEl = document.getElementById('liveToast');
+  const toastMsg = document.getElementById('toast-message');
+  if (toastEl && toastMsg) {
+    toastMsg.textContent = message;
+    const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
+    toast.show();
+  }
 }

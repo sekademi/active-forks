@@ -9,7 +9,7 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.3.4/css/dataTables.bootstrap5.min.css" integrity="sha384-zmMNeKbOwzvUmxN8Z/VoYM+i+cwyC14+U9lq4+ZL0Ro7p1GMoh8uq8/HvIBgnh9+" crossorigin="anonymous"/>
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/searchbuilder/1.8.4/css/searchBuilder.bootstrap5.min.css" integrity="sha384-c+17EpI1t/ZAjBoElPoW3nsmP/5974nO3qiFjdyE/JLy0pDYToN1xM+cdrRNTcab" crossorigin="anonymous"/>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.6.0/css/fontawesome.min.css" integrity="sha384-NvKbDTEnL+A8F/AA5Tc5kmMLSJHUO868P+lDtTpJIeQdGYaUIuLr4lVGOEA1OcMy" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="style.css">
 
     <script type="text/javascript" src="https://code.jquery.com/jquery-3.7.1.slim.min.js" integrity="sha384-5AkRS45j4ukf+JbWAfHL8P4onPA9p0KwwP7pUdjSQA3ss9edbJUJc/XcYAiheSSz" crossorigin="anonymous"></script>
@@ -22,55 +22,91 @@
 </head>
 
 <body class="bg-body">
-    <div class="container pt-4 pb-2">
+    <div class="container pt-2 pb-2">
         <div class="row">
             <div class="col-sm-12 col-lg-12">
                 <div class="card">
-                    <header class="card-header text-center">
+                    <header class="card-header">
                         <nav class="d-flex align-items-center justify-content-between mb-0">
-                            <a href="https://github.com/techgaun/active-forks" class="text-body-emphasis h3 mb-0">
-                                <span class="visually-hidden" data-i18n="sourceCode">Source code on GitHub</span>
-                                <i class="fa fa-github-alt pull-left" aria-hidden="true"></i>
-                            </a>
                             <div class="d-flex align-items-center gap-2">
-                                <button id="lang-toggle" class="btn btn-sm btn-outline-secondary" type="button"></button>
+                                <a href="https://github.com/techgaun/active-forks" class="text-body-emphasis mb-0">
+                                    <span class="visually-hidden" data-i18n="sourceCode">Source code on GitHub</span>
+                                    <i class="fa-brands fa-github h3 mb-0" aria-hidden="true"></i>
+                                </a>
+                                <h1 class="h5 mb-0" data-i18n="title">
+                                    Active GitHub Forks
+                                </h1>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
                                 <div class="dropdown">
-                                    <button id="theme-toggle" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <span id="theme-icon">🌓</span>
+                                    <button id="lang-toggle" class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fa-solid fa-language"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><button class="dropdown-item" data-theme="light">☀️ <span data-i18n="themeLight">Light</span></button></li>
-                                        <li><button class="dropdown-item" data-theme="dark">🌙 <span data-i18n="themeDark">Dark</span></button></li>
-                                        <li><button class="dropdown-item" data-theme="auto">🖥️ <span data-i18n="themeAuto">Auto</span></button></li>
+                                        <li><button class="dropdown-item" data-lang="en">English</button></li>
+                                        <li><button class="dropdown-item" data-lang="tr">Türkçe</button></li>
+                                        <li><button class="dropdown-item" data-lang="de">Deutsch</button></li>
+                                        <li><button class="dropdown-item" data-lang="zh">中文</button></li>
                                     </ul>
                                 </div>
+                                <div class="dropdown">
+                                    <button id="font-size-toggle" class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fa-solid fa-font"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item d-flex align-items-center gap-2" data-font-size="small"><i class="fa-solid fa-font fa-xs" style="width: 1rem; text-align: center;"></i> <span data-i18n="fontSmall">Small</span></button></li>
+                                        <li><button class="dropdown-item d-flex align-items-center gap-2" data-font-size="normal"><i class="fa-solid fa-font fa-sm" style="width: 1rem; text-align: center;"></i> <span data-i18n="fontNormal">Normal</span></button></li>
+                                        <li><button class="dropdown-item d-flex align-items-center gap-2" data-font-size="large"><i class="fa-solid fa-font" style="width: 1rem; text-align: center;"></i> <span data-i18n="fontLarge">Large</span></button></li>
+                                        <li><button class="dropdown-item d-flex align-items-center gap-2" data-font-size="xlarge"><i class="fa-solid fa-universal-access" style="width: 1rem; text-align: center;"></i> <span data-i18n="fontXLarge">Visually Impaired</span></button></li>
+                                    </ul>
+                                </div>
+                                <div class="dropdown">
+                                    <button id="theme-toggle" class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i id="theme-icon" class="fa-solid fa-circle-half-stroke"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item d-flex align-items-center gap-2" data-theme="light"><i class="fa-solid fa-sun" style="width: 1rem; text-align: center;"></i> <span data-i18n="themeLight">Light</span></button></li>
+                                        <li><button class="dropdown-item d-flex align-items-center gap-2" data-theme="dark"><i class="fa-solid fa-moon" style="width: 1rem; text-align: center;"></i> <span data-i18n="themeDark">Dark</span></button></li>
+                                        <li><button class="dropdown-item d-flex align-items-center gap-2" data-theme="auto"><i class="fa-solid fa-circle-half-stroke" style="width: 1rem; text-align: center;"></i> <span data-i18n="themeAuto">Auto</span></button></li>
+                                    </ul>
+                                </div>
+                                <button id="reset-settings" class="btn btn-sm btn-outline-secondary d-flex align-items-center" data-i18n-attr="title" data-i18n="resetSettings">
+                                    <i class="fa-solid fa-arrow-rotate-left"></i>
+                                </button>
                             </div>
                         </nav>
-                        <h1 class="h3" data-i18n="title">
-                            Active GitHub Forks
-                        </h1>
                     </header>
 
                     <main class="card-body">
-                        <search class="mb-3">
+                        <search class="mb-1">
                             <form id="form">
-                                <label for="q" data-i18n="findRepo">Find repository (e.g. "techgaun/github-dorks")</label>
+                                <label for="q" class="form-label" data-i18n="findRepo">Find repository (e.g. <span id="example-repo" class="text-primary text-decoration-underline" style="cursor: pointer;">sekademi/active-forks</span>)</label>
                                 <div class="input-group">
                                     <input id="q" name="q" class="form-control" type="text" spellcheck="false">
-                                    <span class="input-group-btn">
-                                        <button id="find" onClick="fetchData()" type="button" class="btn btn-primary">
-                                            <i id="spinner" class="fa fa-spinner fa-pulse fa-fw" hidden></i> <span data-i18n="find">Find</span>
-                                        </button>
-                                    </span>
+                                    <button id="find" onClick="fetchData()" type="button" class="btn btn-primary">
+                                        <i id="spinner" class="fa-solid fa-spinner fa-pulse fa-fw" hidden></i> <span data-i18n="find">Find</span>
+                                    </button>
+                                    <button id="filter-toggle" type="button" class="btn btn-outline-secondary">
+                                        🔍 <span data-i18n="filters">Filters</span>
+                                    </button>
                                 </div>
                             </form>
                         </search>
 
                         <div id="data-body"></div>
-                        <table id="forkTable" class="display table table-sm table-striped text-start" width="100%"></table>
+                        <table id="forkTable" class="display table table-sm table-striped table-hover text-start" width="100%"></table>
                     </main>
                     <footer id="footer" class="card-footer text-muted"></footer>
                 </div>
+            </div>
+        </div>
+    </div>
+    <!-- Toast container for notifications -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+        <div id="liveToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="2500">
+            <div class="d-flex">
+                <div id="toast-message" class="toast-body"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
         </div>
     </div>
