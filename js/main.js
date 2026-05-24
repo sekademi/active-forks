@@ -51,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchData();
   }
 
+  const exportCsvBtn = document.getElementById('export-csv');
+  if (exportCsvBtn) exportCsvBtn.addEventListener('click', exportCSV);
+
+  const exportJsonBtn = document.getElementById('export-json');
+  if (exportJsonBtn) exportJsonBtn.addEventListener('click', exportJSON);
+
   // Check if we should show the reset settings toast
   try {
     if (sessionStorage.getItem('show_reset_toast') === 'true') {
@@ -265,6 +271,8 @@ function fetchData() {
 }
 
 function updateDT(data) {
+  window.latestForks = data || [];
+
   // Remove any alerts, if any:
   if ($('.alert')) $('.alert').remove();
 
@@ -515,6 +523,7 @@ window.currentResetTimestamp = null;
 window.cachedRateLimitPromise = null;
 window.cachedRateLimitData = null;
 window.cachedRateLimitReset = 0;
+window.latestForks = [];
 
 function cacheRateLimitData(core) {
   if (!core || typeof core.remaining !== 'number' || typeof core.limit !== 'number') return;
@@ -613,6 +622,62 @@ function fetchRateLimitData() {
 
   window.cachedRateLimitPromise = promise;
   return promise;
+}
+
+function getExportData() {
+  return (window.latestForks || []).map(fork => ({
+    full_name: fork.full_name,
+    html_url: `https://github.com/${fork.full_name}`,
+    owner: fork.owner ? fork.owner.login : '',
+    default_branch: fork.default_branch,
+    stargazers_count: fork.stargazers_count,
+    forks: fork.forks,
+    open_issues_count: fork.open_issues_count,
+    size: fork.size,
+    pushed_at: fork.pushed_at,
+  }));
+}
+
+function buildCSV(rows) {
+  if (!rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  const quote = value => `"${String(value).replace(/"/g, '""')}"`;
+  const lines = [headers.map(quote).join(',')];
+  rows.forEach(row => {
+    lines.push(headers.map(key => quote(row[key] ?? '')).join(','));
+  });
+  return lines.join('\r\n');
+}
+
+function saveFile(content, mimeType, fileName) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  showToast(t('toastExportSuccess'));
+}
+
+function exportJSON() {
+  const rows = getExportData();
+  if (!rows.length) {
+    showMsg(t('errorNoDataExport'), 'danger');
+    return;
+  }
+  saveFile(JSON.stringify(rows, null, 2), 'application/json;charset=utf-8', `active-forks-${getRepoFromUrl() || 'export'}.json`);
+}
+
+function exportCSV() {
+  const rows = getExportData();
+  if (!rows.length) {
+    showMsg(t('errorNoDataExport'), 'danger');
+    return;
+  }
+  saveFile(buildCSV(rows), 'text/csv;charset=utf-8', `active-forks-${getRepoFromUrl() || 'export'}.csv`);
 }
 
 function fetchRateLimit() {
