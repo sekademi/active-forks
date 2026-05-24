@@ -256,7 +256,16 @@ function updateLangButton() {
 // --- DataTable ---
 
 function fetchData() {
-  const repo = document.getElementById('q').value.replaceAll(' ','');
+
+  let repo = document.getElementById('q').value.replaceAll(' ', '');
+  
+  // ✅ Buraya ekle — regex'ten önce temizle
+  repo = repo.replace(/^https?:\/\/github\.com\//i, '');
+  repo = repo.replace(/\.git$/, '');
+  repo = repo.replace(/^\/+|\/+$/g, '');
+  
+  document.getElementById('q').value = repo; // input'u da güncelle
+  
   const re = /[-_\w]+\/[-_.\w]+/;
 
   const urlRepo = getRepoFromUrl();
