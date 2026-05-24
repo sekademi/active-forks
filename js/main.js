@@ -457,6 +457,10 @@ function fetchAndShow(repo) {
       return response.json();
     })
     .then(data => {
+      // cache first page so navigation can reuse it
+      try {
+        setCachedPage(repo, 1, data);
+      } catch (e) {}
       updateDT(data);
     })
     .catch(error => {
@@ -524,6 +528,42 @@ window.cachedRateLimitPromise = null;
 window.cachedRateLimitData = null;
 window.cachedRateLimitReset = 0;
 window.latestForks = [];
+// Cache TTL in seconds (default 1 hour)
+window.PAGE_CACHE_TTL = 60 * 60;
+
+function cacheKeyFor(repo, page) {
+  return `af_cache::${repo}::p${page}`;
+}
+
+function setCachedPage(repo, page, data) {
+  try {
+    const key = cacheKeyFor(repo, page);
+    const item = { ts: Date.now(), data };
+    localStorage.setItem(key, JSON.stringify(item));
+  } catch (e) {
+    // ignore quota errors
+    console.error('Failed to set cache', e);
+  }
+}
+
+function getCachedPage(repo, page) {
+  try {
+    const key = cacheKeyFor(repo, page);
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const item = JSON.parse(raw);
+    if (!item || !item.ts) return null;
+    const ageSec = (Date.now() - item.ts) / 1000;
+    if (ageSec > (window.PAGE_CACHE_TTL || 3600)) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return item.data;
+  } catch (e) {
+    console.error('Failed to read cache', e);
+    return null;
+  }
+}
 
 function cacheRateLimitData(core) {
   if (!core || typeof core.remaining !== 'number' || typeof core.limit !== 'number') return;
@@ -665,6 +705,34 @@ function fetchAllForks(repo) {
   const results = [];
 
   function fetchPage(url) {
+    // derive page and repo from URL
+    let urlObj;
+    try {
+      urlObj = new URL(url);
+    } catch (e) {
+      urlObj = null;
+    }
+    let page = 1;
+    if (urlObj) {
+      const p = urlObj.searchParams.get('page');
+      if (p) page = parseInt(p, 10) || 1;
+    }
+    const cached = getCachedPage(repo, page);
+    if (cached) {
+      results.push(...cached);
+      // if cached, we still need to know whether there is a next page; try to infer from length
+      if (cached.length < 100) {
+        return results;
+      }
+      // assume maybe more pages, attempt to fetch next page URL by incrementing page
+      const nextUrl = urlObj ? new URL(url) : null;
+      if (nextUrl) {
+        nextUrl.searchParams.set('page', String(page + 1));
+        return fetchPage(nextUrl.toString());
+      }
+      return results;
+    }
+
     return fetch(url)
       .then(response => {
         const limit = response.headers.get('x-ratelimit-limit');
@@ -679,6 +747,8 @@ function fetchAllForks(repo) {
         return response.json().then(data => ({ data, link: response.headers.get('link') }));
       })
       .then(({ data, link }) => {
+        // cache this page
+        setCachedPage(repo, page, data);
         results.push(...data);
         const parsed = parseLinkHeader(link);
         if (parsed.next) {
