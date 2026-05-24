@@ -461,22 +461,20 @@ function fetchAndShow(repo) {
   const cachedFirstPage = getCachedPage(repo, 1);
   if (cachedFirstPage) {
     updateDT(cachedFirstPage);
+    setLoading(false);
+    return Promise.resolve(cachedFirstPage);
   }
 
-  fetchRateLimitData()
+  return fetchRateLimitData()
     .then(core => {
       if (core && core.remaining !== null && core.limit !== null) {
         updateRateLimitUI(core.remaining, core.limit, core.reset);
       }
       if (core && core.remaining === 0) {
-        if (cachedFirstPage) {
-          showToast(t('toastLoadedCachedData'));
-          return cachedFirstPage;
-        }
         showMsg(`${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`, 'danger');
         throw new Error('rate-limit-exceeded');
       }
-      return fetchFirstPage(repo, cachedFirstPage);
+      return fetchFirstPage(repo, null);
     })
     .then(() => {
       setLoading(false);
@@ -708,13 +706,14 @@ function getCachedPage(repo, page) {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const item = JSON.parse(raw);
+
     if (!item || !item.ts) return null;
     const ageSec = (Date.now() - item.ts) / 1000;
     if (ageSec > (window.PAGE_CACHE_TTL || 3600)) {
       localStorage.removeItem(key);
       return null;
     }
-    return item.data;
+    return item.data || null;
   } catch (e) {
     console.error('Failed to read cache', e);
     return null;
