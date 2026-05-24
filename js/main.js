@@ -277,20 +277,39 @@ function updateDT(data) {
   if ($('.alert')) $('.alert').remove();
 
   // Format dataset and redraw DataTable. Use second index for key name
-  const forks = [];
-  for (let fork of data) {
-    fork.repoLink = fork.full_name;
-    fork.ownerName = `<img src="${fork.owner.avatar_url || 'https://avatars.githubusercontent.com/u/0?v=4'}&s=48" width="24" height="24" class="me-2 rounded-circle" />${fork.owner ? fork.owner.login : '<strike><em>Unknown</em></strike>'}`;
-    forks.push(fork);
-  }
-  const dataSet = forks.map(fork =>
-    window.columnNamesMap.map(colNM => fork[colNM[1]])
-  );
+  const dataSet = mapForksToDataTableRows(data || []);
   window.forkTable
     .clear()
     .rows.add(dataSet)
     .draw();
   makeTableKeyboardScrollable();
+}
+
+function renderForkPages(pageMap) {
+  const pages = Object.keys(pageMap)
+    .map(page => parseInt(page, 10))
+    .sort((a, b) => a - b)
+    .flatMap(page => pageMap[page] || []);
+  updateDT(pages);
+}
+
+function appendDT(data) {
+  if (!Array.isArray(data) || data.length === 0) return;
+
+  window.latestForks.push(...data);
+  const dataSet = mapForksToDataTableRows(data);
+  window.forkTable
+    .rows.add(dataSet)
+    .draw(false);
+  makeTableKeyboardScrollable();
+}
+
+function mapForksToDataTableRows(forks) {
+  return (forks || []).map(fork => {
+    fork.repoLink = fork.full_name;
+    fork.ownerName = `<img src="${fork.owner.avatar_url || 'https://avatars.githubusercontent.com/u/0?v=4'}&s=48" width="24" height="24" class="me-2 rounded-circle" />${fork.owner ? fork.owner.login : '<strike><em>Unknown</em></strike>'}`;
+    return window.columnNamesMap.map(colNM => fork[colNM[1]]);
+  });
 }
 
 // Will replace with JavaScript Temporal once supported in major browsers
@@ -429,9 +448,20 @@ function fetchAndShow(repo) {
   repo = repo.replace(/^\/+/, ''); // remove leading slashes
   repo = repo.replace(/\/+$/, ''); // remove trailing slashes
 
-  const forkRequest = () => fetch(
-    `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`
-  );
+  setLoading(true);
+  window.latestForks = [];
+  window.forkTable.clear().draw();
+
+  const pageMap = {};
+  const renderPage = (pageData, page) => {
+    if (!Array.isArray(pageData) || pageData.length === 0) return;
+    pageMap[page] = pageData;
+    renderForkPages(pageMap);
+  };
+
+  const nextPage = loadCachedPages(repo, (pageData, page) => {
+    renderPage(pageData, page);
+  });
 
   fetchRateLimitData()
     .then(core => {
@@ -442,28 +472,15 @@ function fetchAndShow(repo) {
         showMsg(`${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`, 'danger');
         throw new Error('rate-limit-exceeded');
       }
-      return forkRequest();
+      return fetchAllForksProgressively(repo, (pageData, allData, page) => {
+        renderPage(pageData, page);
+      }, nextPage);
     })
-    .then(response => {
-      const limit = response.headers.get('x-ratelimit-limit');
-      const remaining = response.headers.get('x-ratelimit-remaining');
-      const reset = response.headers.get('x-ratelimit-reset');
-      if (limit !== null && remaining !== null) {
-        updateRateLimitUI(parseInt(remaining, 10), parseInt(limit, 10), parseInt(reset, 10));
-      }
-      if (!response.ok) {
-        throw Error(response.statusText || `HTTP ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      // cache first page so navigation can reuse it
-      try {
-        setCachedPage(repo, 1, data);
-      } catch (e) {}
-      updateDT(data);
+    .then(() => {
+      setLoading(false);
     })
     .catch(error => {
+      setLoading(false);
       if (error.message === 'rate-limit-exceeded') {
         return;
       }
@@ -521,6 +538,13 @@ function showToast(message) {
   }
 }
 
+function setLoading(isLoading) {
+  const spinner = document.getElementById('spinner');
+  const findBtn = document.getElementById('find');
+  if (spinner) spinner.hidden = !isLoading;
+  if (findBtn) findBtn.disabled = isLoading;
+}
+
 // --- Rate Limit System ---
 
 window.currentResetTimestamp = null;
@@ -563,6 +587,22 @@ function getCachedPage(repo, page) {
     console.error('Failed to read cache', e);
     return null;
   }
+}
+
+function loadCachedPages(repo, onPage) {
+  const pages = [];
+  let page = 1;
+  while (true) {
+    const cached = getCachedPage(repo, page);
+    if (!cached || !Array.isArray(cached) || cached.length === 0) break;
+    pages.push(...cached);
+    if (typeof onPage === 'function') {
+      onPage(cached, page);
+    }
+    if (cached.length < 100) break;
+    page += 1;
+  }
+  return page;
 }
 
 function cacheRateLimitData(core) {
@@ -722,7 +762,7 @@ function fetchAllForks(repo) {
       results.push(...cached);
       // if cached, we still need to know whether there is a next page; try to infer from length
       if (cached.length < 100) {
-        return results;
+        return Promise.resolve(results);
       }
       // assume maybe more pages, attempt to fetch next page URL by incrementing page
       const nextUrl = urlObj ? new URL(url) : null;
@@ -730,7 +770,7 @@ function fetchAllForks(repo) {
         nextUrl.searchParams.set('page', String(page + 1));
         return fetchPage(nextUrl.toString());
       }
-      return results;
+      return Promise.resolve(results);
     }
 
     return fetch(url)
@@ -744,12 +784,83 @@ function fetchAllForks(repo) {
         if (!response.ok) {
           throw Error(response.statusText || `HTTP ${response.status}`);
         }
-        return response.json().then(data => ({ data, link: response.headers.get('link') }));
+        return response.json().then(data => ({ data, link: response.headers.get('link'), page }));
       })
-      .then(({ data, link }) => {
+      .then(({ data, link, page }) => {
         // cache this page
         setCachedPage(repo, page, data);
         results.push(...data);
+        const parsed = parseLinkHeader(link);
+        if (parsed.next) {
+          return fetchPage(parsed.next);
+        }
+        return results;
+      });
+  }
+
+  return fetchPage(baseUrl);
+}
+
+function fetchAllForksProgressively(repo, onPage, startPage = 1) {
+  const baseUrl = `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`;
+  const results = [];
+
+  function fetchPage(url) {
+    let urlObj;
+    try {
+      urlObj = new URL(url);
+    } catch (e) {
+      urlObj = null;
+    }
+    let page = 1;
+    if (urlObj) {
+      const p = urlObj.searchParams.get('page');
+      if (p) page = parseInt(p, 10) || 1;
+    }
+    if (page < startPage) {
+      const nextUrl = urlObj ? new URL(url) : null;
+      if (nextUrl) {
+        nextUrl.searchParams.set('page', String(page + 1));
+        return fetchPage(nextUrl.toString());
+      }
+      return Promise.resolve(results);
+    }
+    const cached = getCachedPage(repo, page);
+    if (cached) {
+      results.push(...cached);
+      if (typeof onPage === 'function') {
+        onPage(cached, results.slice(), page, true);
+      }
+      if (cached.length < 100) {
+        return Promise.resolve(results);
+      }
+      const nextUrl = urlObj ? new URL(url) : null;
+      if (nextUrl) {
+        nextUrl.searchParams.set('page', String(page + 1));
+        return fetchPage(nextUrl.toString());
+      }
+      return Promise.resolve(results);
+    }
+
+    return fetch(url)
+      .then(response => {
+        const limit = response.headers.get('x-ratelimit-limit');
+        const remaining = response.headers.get('x-ratelimit-remaining');
+        const reset = response.headers.get('x-ratelimit-reset');
+        if (limit !== null && remaining !== null) {
+          updateRateLimitUI(parseInt(remaining, 10), parseInt(limit, 10), parseInt(reset, 10));
+        }
+        if (!response.ok) {
+          throw Error(response.statusText || `HTTP ${response.status}`);
+        }
+        return response.json().then(data => ({ data, link: response.headers.get('link'), page }));
+      })
+      .then(({ data, link, page }) => {
+        setCachedPage(repo, page, data);
+        results.push(...data);
+        if (typeof onPage === 'function') {
+          onPage(data, results.slice(), page, false);
+        }
         const parsed = parseLinkHeader(link);
         if (parsed.next) {
           return fetchPage(parsed.next);
