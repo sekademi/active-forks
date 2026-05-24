@@ -96,7 +96,16 @@
                         <div id="data-body"></div>
                         <table id="forkTable" class="display table table-sm table-striped table-hover text-start" width="100%"></table>
                     </main>
-                    <footer id="footer" class="card-footer text-muted"></footer>
+                    <footer id="footer" class="card-footer text-muted d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div id="footer-text">Active GitHub Forks</div>
+                        <div id="rate-limit-container" class="d-flex align-items-center gap-2" style="font-size: 0.75rem; opacity: 0; transition: opacity 0.2s;" data-bs-toggle="tooltip">
+                            <span data-i18n="rateLimit">API Rate Limit:</span>
+                            <div class="progress" style="width: 80px; height: 6px;">
+                                <div id="rate-limit-progress" class="progress-bar bg-success" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <span id="rate-limit-text">0/0</span>
+                        </div>
+                    </footer>
                 </div>
             </div>
         </div>

@@ -62,6 +62,29 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (e) {
     console.error('sessionStorage access denied:', e);
   }
+
+  // Fetch initial rate limit
+  fetchRateLimit();
+
+  // Set up rate limit tooltip hover listener
+  const rateLimitContainer = document.getElementById('rate-limit-container');
+  if (rateLimitContainer) {
+    rateLimitContainer.addEventListener('mouseenter', () => {
+      if (window.currentResetTimestamp) {
+        const secondsLeft = window.currentResetTimestamp - Math.floor(Date.now() / 1000);
+        const minutesLeft = Math.max(0, Math.ceil(secondsLeft / 60));
+        let timeStr = '';
+        if (minutesLeft > 0) {
+          timeStr = `${minutesLeft} ${t('minutes')}`;
+        } else {
+          const secs = Math.max(0, secondsLeft);
+          timeStr = `${secs} ${t('seconds')}`;
+        }
+        const tooltipTemplate = t('rateLimitTooltip');
+        rateLimitContainer.setAttribute('title', tooltipTemplate.replace('{time}', timeStr));
+      }
+    });
+  }
 });
 
 document.getElementById('form').addEventListener('submit', e => {
@@ -396,6 +419,12 @@ function fetchAndShow(repo) {
     `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`
   )
     .then(response => {
+      const limit = response.headers.get('x-ratelimit-limit');
+      const remaining = response.headers.get('x-ratelimit-remaining');
+      const reset = response.headers.get('x-ratelimit-reset');
+      if (limit !== null && remaining !== null) {
+        updateRateLimitUI(parseInt(remaining, 10), parseInt(limit, 10), parseInt(reset, 10));
+      }
       if (!response.ok) throw Error(response.statusText);
       return response.json();
     })
@@ -419,7 +448,10 @@ function showMsg(msg, type) {
     alert_type = 'alert-danger';
   }
 
-  document.getElementById('footer').innerHTML = '';
+  const footerText = document.getElementById('footer-text');
+  if (footerText) {
+    footerText.innerHTML = '';
+  }
 
   document.getElementById('data-body').innerHTML = `
         <div class="alert ${alert_type} alert-dismissible fade show" role="alert">
@@ -451,4 +483,66 @@ function showToast(message) {
     const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
     toast.show();
   }
+}
+
+// --- Rate Limit System ---
+
+window.currentResetTimestamp = null;
+
+function updateRateLimitUI(remaining, limit, reset) {
+  const container = document.getElementById('rate-limit-container');
+  const progress = document.getElementById('rate-limit-progress');
+  const text = document.getElementById('rate-limit-text');
+
+  if (!container || !progress || !text) return;
+
+  window.currentResetTimestamp = reset;
+
+  const pct = limit > 0 ? (remaining / limit) * 100 : 0;
+  progress.style.width = `${pct}%`;
+  progress.setAttribute('aria-valuenow', pct);
+
+  // Set color class based on remaining quota percentage
+  progress.className = 'progress-bar';
+  if (pct > 50) {
+    progress.classList.add('bg-success');
+  } else if (pct > 20) {
+    progress.classList.add('bg-warning');
+  } else {
+    progress.classList.add('bg-danger');
+  }
+
+  text.textContent = `${remaining}/${limit}`;
+
+  // Update initial title tooltip
+  if (reset) {
+    const secondsLeft = reset - Math.floor(Date.now() / 1000);
+    const minutesLeft = Math.max(0, Math.ceil(secondsLeft / 60));
+    let timeStr = '';
+    if (minutesLeft > 0) {
+      timeStr = `${minutesLeft} ${t('minutes')}`;
+    } else {
+      const secs = Math.max(0, secondsLeft);
+      timeStr = `${secs} ${t('seconds')}`;
+    }
+    const tooltipTemplate = t('rateLimitTooltip');
+    container.setAttribute('title', tooltipTemplate.replace('{time}', timeStr));
+  }
+
+  container.style.opacity = '1';
+}
+
+function fetchRateLimit() {
+  fetch('https://api.github.com/rate_limit')
+    .then(response => {
+      if (response.ok) return response.json();
+      throw new Error();
+    })
+    .then(data => {
+      if (data && data.resources && data.resources.core) {
+        const core = data.resources.core;
+        updateRateLimitUI(core.remaining, core.limit, core.reset);
+      }
+    })
+    .catch(err => console.error('Failed to fetch rate limit:', err));
 }

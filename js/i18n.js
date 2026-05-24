@@ -29,6 +29,10 @@ const translations = {
     toastLangUpdated: 'Language updated successfully!',
     toastPageLengthUpdated: 'Page length updated successfully!',
     toastSettingsReset: 'All settings have been reset to defaults!',
+    rateLimit: 'API Rate Limit:',
+    rateLimitTooltip: 'Resets in {time}',
+    minutes: 'minutes',
+    seconds: 'seconds',
   },
   tr: {
     title: 'Aktif GitHub Fork\'ları',
@@ -60,6 +64,10 @@ const translations = {
     toastLangUpdated: 'Dil başarıyla güncellendi!',
     toastPageLengthUpdated: 'Sayfa uzunluğu başarıyla güncellendi!',
     toastSettingsReset: 'Tüm ayarlar varsayılana sıfırlandı!',
+    rateLimit: 'API İstek Limiti:',
+    rateLimitTooltip: '{time} içinde sıfırlanacak',
+    minutes: 'dakika',
+    seconds: 'saniye',
   },
   de: {
     title: 'Aktive GitHub-Forks',
@@ -91,6 +99,10 @@ const translations = {
     toastLangUpdated: 'Sprache erfolgreich aktualisiert!',
     toastPageLengthUpdated: 'Zeilenanzahl erfolgreich aktualisiert!',
     toastSettingsReset: 'Alle Einstellungen wurden zurückgesetzt!',
+    rateLimit: 'API-Ratenlimit:',
+    rateLimitTooltip: 'Wird in {time} zurückgesetzt',
+    minutes: 'Minuten',
+    seconds: 'Sekunden',
   },
   zh: {
     title: '活跃的 GitHub Forks',
@@ -122,6 +134,10 @@ const translations = {
     toastLangUpdated: '语言更新成功！',
     toastPageLengthUpdated: '每页条数更新成功！',
     toastSettingsReset: '所有设置已重置为默认值！',
+    rateLimit: 'API 速率限制：',
+    rateLimitTooltip: '{time} 后重置',
+    minutes: '分钟',
+    seconds: '秒',
   },
 };
 
