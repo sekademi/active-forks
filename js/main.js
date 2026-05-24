@@ -57,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportJsonBtn = document.getElementById('export-json');
   if (exportJsonBtn) exportJsonBtn.addEventListener('click', exportJSON);
 
+  initFetchAllForksSwitch();
+
   // Check if we should show the reset settings toast
   try {
     if (sessionStorage.getItem('show_reset_toast') === 'true') {
@@ -261,7 +263,11 @@ function fetchData() {
   }
 
   if (re.test(repo)) {
-    fetchAndShow(repo);
+    if (getFetchAllForksSetting()) {
+      fetchAllForksHandler(repo);
+    } else {
+      fetchAndShow(repo);
+    }
   } else {
     showMsg(
       t('errorInvalid'),
@@ -452,16 +458,10 @@ function fetchAndShow(repo) {
   window.latestForks = [];
   window.forkTable.clear().draw();
 
-  const pageMap = {};
-  const renderPage = (pageData, page) => {
-    if (!Array.isArray(pageData) || pageData.length === 0) return;
-    pageMap[page] = pageData;
-    renderForkPages(pageMap);
-  };
-
-  const nextPage = loadCachedPages(repo, (pageData, page) => {
-    renderPage(pageData, page);
-  });
+  const cachedFirstPage = getCachedPage(repo, 1);
+  if (cachedFirstPage) {
+    updateDT(cachedFirstPage);
+  }
 
   fetchRateLimitData()
     .then(core => {
@@ -469,12 +469,14 @@ function fetchAndShow(repo) {
         updateRateLimitUI(core.remaining, core.limit, core.reset);
       }
       if (core && core.remaining === 0) {
+        if (cachedFirstPage) {
+          showToast(t('toastLoadedCachedData'));
+          return cachedFirstPage;
+        }
         showMsg(`${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`, 'danger');
         throw new Error('rate-limit-exceeded');
       }
-      return fetchAllForksProgressively(repo, (pageData, allData, page) => {
-        renderPage(pageData, page);
-      }, nextPage);
+      return fetchFirstPage(repo, cachedFirstPage);
     })
     .then(() => {
       setLoading(false);
@@ -491,6 +493,102 @@ function fetchAndShow(repo) {
           : error;
       showMsg(`${msg}. ${t('messageTryAgain')}`, 'danger');
       console.error(error);
+    });
+}
+
+function fetchFirstPage(repo, cachedFirstPage) {
+  return fetch(`https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100&page=1`)
+    .then(response => {
+      const limit = response.headers.get('x-ratelimit-limit');
+      const remaining = response.headers.get('x-ratelimit-remaining');
+      const reset = response.headers.get('x-ratelimit-reset');
+      if (limit !== null && remaining !== null) {
+        updateRateLimitUI(parseInt(remaining, 10), parseInt(limit, 10), parseInt(reset, 10));
+      }
+      if (!response.ok) {
+        throw Error(response.statusText || `HTTP ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      setCachedPage(repo, 1, data);
+      updateDT(data);
+      return data;
+    })
+    .catch(error => {
+      if (cachedFirstPage) {
+        showToast(t('toastLoadedCachedData'));
+        return cachedFirstPage;
+      }
+      throw error;
+    });
+}
+
+function fetchAllForksHandler(repoParam) {
+  const repo = repoParam || getRepoFromUrl() || document.getElementById('q')?.value.replaceAll(' ', '');
+  const re = /[-_\w]+\/[-_.\w]+/;
+  if (!re.test(repo)) {
+    showMsg(t('errorInvalid'), 'danger');
+    return;
+  }
+
+  setLoading(true);
+  window.latestForks = [];
+  window.forkTable.clear().draw();
+
+  const pageMap = {};
+  const renderPage = (pageData, page) => {
+    if (!Array.isArray(pageData) || pageData.length === 0) return;
+    pageMap[page] = pageData;
+    renderForkPages(pageMap);
+  };
+
+  const nextPage = loadCachedPages(repo, (pageData, page) => {
+    renderPage(pageData, page);
+  });
+
+  let fetchAllCompleted = false;
+  fetchRateLimitData()
+    .then(core => {
+      if (core && core.remaining !== null && core.limit !== null) {
+        updateRateLimitUI(core.remaining, core.limit, core.reset);
+      }
+      if (core && core.remaining === 0) {
+        if (Object.keys(pageMap).length > 0) {
+          showToast(t('toastLoadedCachedData'));
+          return Promise.resolve();
+        }
+        showMsg(`${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`, 'danger');
+        throw new Error('rate-limit-exceeded');
+      }
+      return fetchAllForksProgressively(repo, (pageData, allData, page) => {
+        renderPage(pageData, page);
+      }, nextPage);
+    })
+    .then(() => {
+      fetchAllCompleted = true;
+    })
+    .catch(error => {
+      if (error.message === 'rate-limit-exceeded') {
+        return;
+      }
+
+      const msg =
+        error.toString().indexOf('Forbidden') >= 0
+          ? `${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`
+          : error;
+      if (Object.keys(pageMap).length > 0) {
+        showToast(t('toastLoadedCachedData'));
+        return;
+      }
+      showMsg(`${msg}. ${t('messageTryAgain')}`, 'danger');
+      console.error(error);
+    })
+    .finally(() => {
+      setLoading(false);
+      if (fetchAllCompleted) {
+        showToast(t('toastAllForksFetchComplete'));
+      }
     });
 }
 
@@ -538,11 +636,45 @@ function showToast(message) {
   }
 }
 
+function getFetchAllForksSetting() {
+  try {
+    return localStorage.getItem('fetch_all_forks') === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+
+function setFetchAllForksSetting(value) {
+  try {
+    localStorage.setItem('fetch_all_forks', value ? 'true' : 'false');
+  } catch (e) {
+    // ignore storage errors
+  }
+}
+
+function initFetchAllForksSwitch() {
+  const fetchAllForksSwitch = document.getElementById('fetch-all-switch');
+  if (!fetchAllForksSwitch) return;
+
+  fetchAllForksSwitch.checked = getFetchAllForksSetting();
+  fetchAllForksSwitch.addEventListener('change', () => {
+    if (fetchAllForksSwitch.checked) {
+      if (!window.confirm(t('fetchAllForksWarning'))) {
+        fetchAllForksSwitch.checked = false;
+        return;
+      }
+    }
+    setFetchAllForksSetting(fetchAllForksSwitch.checked);
+  });
+}
+
 function setLoading(isLoading) {
   const spinner = document.getElementById('spinner');
   const findBtn = document.getElementById('find');
+  const fetchAllForksSwitch = document.getElementById('fetch-all-switch');
   if (spinner) spinner.hidden = !isLoading;
   if (findBtn) findBtn.disabled = isLoading;
+  if (fetchAllForksSwitch) fetchAllForksSwitch.disabled = isLoading;
 }
 
 // --- Rate Limit System ---
