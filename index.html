@@ -27,13 +27,26 @@
             <div class="col-sm-12 col-lg-12">
                 <div class="card">
                     <header class="card-header text-center">
-                        <nav class="h3 mb-0">
-                            <a href="https://github.com/techgaun/active-forks" class="text-body-emphasis">
-                                <span class="visually-hidden">Source code on GitHub</span>
+                        <nav class="d-flex align-items-center justify-content-between mb-0">
+                            <a href="https://github.com/techgaun/active-forks" class="text-body-emphasis h3 mb-0">
+                                <span class="visually-hidden" data-i18n="sourceCode">Source code on GitHub</span>
                                 <i class="fa fa-github-alt pull-left" aria-hidden="true"></i>
                             </a>
+                            <div class="d-flex align-items-center gap-2">
+                                <button id="lang-toggle" class="btn btn-sm btn-outline-secondary" type="button"></button>
+                                <div class="dropdown">
+                                    <button id="theme-toggle" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <span id="theme-icon">🌓</span>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item" data-theme="light">☀️ <span data-i18n="themeLight">Light</span></button></li>
+                                        <li><button class="dropdown-item" data-theme="dark">🌙 <span data-i18n="themeDark">Dark</span></button></li>
+                                        <li><button class="dropdown-item" data-theme="auto">🖥️ <span data-i18n="themeAuto">Auto</span></button></li>
+                                    </ul>
+                                </div>
+                            </div>
                         </nav>
-                        <h1 class="h3">
+                        <h1 class="h3" data-i18n="title">
                             Active GitHub Forks
                         </h1>
                     </header>
@@ -41,12 +54,12 @@
                     <main class="card-body">
                         <search class="mb-3">
                             <form id="form">
-                                <label for="q">Find repository (e.g. "techgaun/github-dorks")</label>
+                                <label for="q" data-i18n="findRepo">Find repository (e.g. "techgaun/github-dorks")</label>
                                 <div class="input-group">
                                     <input id="q" name="q" class="form-control" type="text" spellcheck="false">
                                     <span class="input-group-btn">
                                         <button id="find" onClick="fetchData()" type="button" class="btn btn-primary">
-                                            <i id="spinner" class="fa fa-spinner fa-pulse fa-fw" hidden></i> Find
+                                            <i id="spinner" class="fa fa-spinner fa-pulse fa-fw" hidden></i> <span data-i18n="find">Find</span>
                                         </button>
                                     </span>
                                 </div>
@@ -56,15 +69,12 @@
                         <div id="data-body"></div>
                         <table id="forkTable" class="display table table-sm table-striped text-start" width="100%"></table>
                     </main>
-                    <button id="dark-mode-toggle" aria-pressed="false">
-                        <span class="visually-hidden">Toggle Dark Mode</span>
-                        <span aria-hidden="true">🌓</span>
-                    </button>
                     <footer id="footer" class="card-footer text-muted"></footer>
                 </div>
             </div>
         </div>
     </div>
+    <script type="text/javascript" src="js/i18n.js"></script>
     <script type="text/javascript" src="js/main.js"></script>
 </body>
 </html>

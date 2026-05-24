@@ -1,7 +1,8 @@
 window.addEventListener('load', () => {
-  initDT(); // Initialize the DatatTable and window.columnNames variables
-  document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
-  if(localStorage.getItem('darkmode') === '1') document.body.setAttribute('data-bs-theme', 'dark');
+  initTheme();
+  initLangToggle();
+  applyTranslations();
+  initDT();
 
   const repo = getRepoFromUrl();
 
@@ -15,6 +16,83 @@ document.getElementById('form').addEventListener('submit', e => {
   e.preventDefault();
   fetchData();
 });
+
+// --- Theme System ---
+
+function getPreferredTheme() {
+  const stored = localStorage.getItem('theme');
+  if (stored) return stored;
+  return 'auto';
+}
+
+function getEffectiveTheme(theme) {
+  if (theme === 'auto') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return theme;
+}
+
+function setTheme(theme) {
+  localStorage.setItem('theme', theme);
+  const effective = getEffectiveTheme(theme);
+  document.body.setAttribute('data-bs-theme', effective);
+  updateThemeIcon(theme);
+  updateThemeMenuActive(theme);
+}
+
+function updateThemeIcon(theme) {
+  const iconEl = document.getElementById('theme-icon');
+  if (!iconEl) return;
+  const icons = { light: '☀️', dark: '🌙', auto: '🖥️' };
+  iconEl.textContent = icons[theme] || '🌓';
+}
+
+function updateThemeMenuActive(theme) {
+  document.querySelectorAll('[data-theme]').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
+  });
+}
+
+function initTheme() {
+  const theme = getPreferredTheme();
+  setTheme(theme);
+
+  // Listen for OS theme changes when in auto mode
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (localStorage.getItem('theme') === 'auto') {
+      document.body.setAttribute('data-bs-theme', getEffectiveTheme('auto'));
+    }
+  });
+
+  // Theme dropdown items
+  document.querySelectorAll('[data-theme]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setTheme(btn.getAttribute('data-theme'));
+    });
+  });
+}
+
+// --- Language Toggle ---
+
+function initLangToggle() {
+  const btn = document.getElementById('lang-toggle');
+  if (!btn) return;
+  updateLangButton(btn);
+  btn.addEventListener('click', () => {
+    const current = getLanguage();
+    const next = current === 'en' ? 'tr' : 'en';
+    setLanguage(next);
+    updateLangButton(btn);
+    rebuildDTColumns();
+  });
+}
+
+function updateLangButton(btn) {
+  const lang = getLanguage();
+  btn.textContent = lang.toUpperCase();
+}
+
+// --- DataTable ---
 
 function fetchData() {
   const repo = document.getElementById('q').value.replaceAll(' ','');
@@ -30,7 +108,7 @@ function fetchData() {
     fetchAndShow(repo);
   } else {
     showMsg(
-      'Invalid GitHub repository! Format is &lt;username&gt;/&lt;repo&gt;',
+      t('errorInvalid'),
       'danger'
     );
   }
@@ -43,7 +121,7 @@ function updateDT(data) {
   // Format dataset and redraw DataTable. Use second index for key name
   const forks = [];
   for (let fork of data) {
-    fork.repoLink = `<a href="https://github.com/${fork.full_name}">Link</a>`;
+    fork.repoLink = `<a href="https://github.com/${fork.full_name}">${t('colLink')}</a>`;
     fork.ownerName = `<img src="${fork.owner.avatar_url || 'https://avatars.githubusercontent.com/u/0?v=4'}&s=48" width="24" height="24" class="me-2 rounded-circle" />${fork.owner ? fork.owner.login : '<strike><em>Unknown</em></strike>'}`;
     forks.push(fork);
   }
@@ -59,7 +137,9 @@ function updateDT(data) {
 
 // Will replace with JavaScript Temporal once supported in major browsers
 function howLongAgo(date) {
-  const relTime = new Intl.RelativeTimeFormat(navigator.language, { style: 'long' });
+  const lang = getLanguage();
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-US';
+  const relTime = new Intl.RelativeTimeFormat(locale, { style: 'long' });
   if(!date) return 'Unknown';
 
   const startDateMilliseconds = Date.parse(date);
@@ -80,23 +160,25 @@ function howLongAgo(date) {
   return relTime.format(-Math.floor(elapsedYears), 'year');
 }
 
-function initDT() {
-  // Create ordered Object with column name and mapped display name
-  window.columnNamesMap = [
-    // [ 'Repository', 'full_name' ],
-    ['Link', 'repoLink'], // custom key
-    ['Owner', 'ownerName'], // custom key
-    ['Name', 'name'],
-    ['Branch', 'default_branch'],
-    ['Stars', 'stargazers_count'],
-    ['Forks', 'forks'],
-    ['Open Issues', 'open_issues_count'],
-    ['Size', 'size'],
-    ['Last Push', 'pushed_at'],
+function getColumnNamesMap() {
+  return [
+    [t('colLink'), 'repoLink'],
+    [t('colOwner'), 'ownerName'],
+    [t('colName'), 'name'],
+    [t('colBranch'), 'default_branch'],
+    [t('colStars'), 'stargazers_count'],
+    [t('colForks'), 'forks'],
+    [t('colIssues'), 'open_issues_count'],
+    [t('colSize'), 'size'],
+    [t('colLastPush'), 'pushed_at'],
   ];
+}
+
+function initDT() {
+  window.columnNamesMap = getColumnNamesMap();
 
   // Sort by stars:
-  const sortColName = 'Stars';
+  const sortColName = t('colStars');
   const sortColumnIdx = window.columnNamesMap
     .map(pair => pair[0])
     .indexOf(sortColName);
@@ -129,6 +211,26 @@ function initDT() {
   makeTableKeyboardScrollable();
 }
 
+function rebuildDTColumns() {
+  if (!window.forkTable) return;
+
+  // Save current data
+  const currentData = window.forkTable.rows().data().toArray();
+
+  // Destroy existing table
+  window.forkTable.destroy();
+  $('#forkTable').empty();
+
+  // Re-initialize with new language
+  initDT();
+
+  // Re-add data if any existed
+  if (currentData.length > 0) {
+    window.forkTable.rows.add(currentData).draw();
+    makeTableKeyboardScrollable();
+  }
+}
+
 function fetchAndShow(repo) {
   repo = repo.replace('https://github.com/', '');
   repo = repo.replace('http://github.com/', '');
@@ -151,7 +253,7 @@ function fetchAndShow(repo) {
     .catch(error => {
       const msg =
         error.toString().indexOf('Forbidden') >= 0
-          ? 'Error: API Rate Limit Exceeded'
+          ? t('errorRateLimit')
           : error;
       showMsg(`${msg}. Additional info in console`, 'danger');
       console.error(error);
@@ -181,14 +283,6 @@ function getRepoFromUrl() {
   const urlRepo = location.hash && location.hash.slice(1);
 
   return urlRepo && decodeURIComponent(urlRepo);
-}
-
-function toggleDarkMode(event) {
-  const button = event.target;
-  if(button.ariaPressed === 'true') button.ariaPressed = 'false';
-  else button.ariaPressed = 'true';
-  document.body.setAttribute('data-bs-theme', button.ariaPressed === 'true' ? 'dark' : 'light');
-  localStorage.setItem('darkmode', document.body.getAttribute('data-bs-theme') === 'dark' ? 1 : 0);
 }
 
 function makeTableKeyboardScrollable() {

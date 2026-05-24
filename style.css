@@ -7,16 +7,15 @@ th:nth-child(3) {
 th, tr, td {
 	border: none;
 }
-#dark-mode-toggle {
-	border: none;
-	border-radius: 100%;
-	background-color: var(--bs-emphasis-color);
-	width: 3rem;
-	height: 3rem;
-	position: fixed;
-	right: 2rem;
-	bottom: 2rem;
-	z-index: 5;
+#theme-toggle {
+	line-height: 1;
+}
+#lang-toggle {
+	font-weight: 600;
+	min-width: 2.5rem;
+}
+.dropdown-item.active {
+	background-color: var(--bs-primary);
 }
 [data-bs-theme=dark] {
 	--bs-border-color: #647078;
