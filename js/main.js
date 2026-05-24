@@ -649,6 +649,48 @@ function buildCSV(rows) {
   return lines.join('\r\n');
 }
 
+function parseLinkHeader(link) {
+  if (!link) return {};
+  return link.split(',').reduce((acc, part) => {
+    const match = part.match(/<([^>]+)>;\s*rel="([^"]+)"/);
+    if (match) {
+      acc[match[2]] = match[1];
+    }
+    return acc;
+  }, {});
+}
+
+function fetchAllForks(repo) {
+  const baseUrl = `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`;
+  const results = [];
+
+  function fetchPage(url) {
+    return fetch(url)
+      .then(response => {
+        const limit = response.headers.get('x-ratelimit-limit');
+        const remaining = response.headers.get('x-ratelimit-remaining');
+        const reset = response.headers.get('x-ratelimit-reset');
+        if (limit !== null && remaining !== null) {
+          updateRateLimitUI(parseInt(remaining, 10), parseInt(limit, 10), parseInt(reset, 10));
+        }
+        if (!response.ok) {
+          throw Error(response.statusText || `HTTP ${response.status}`);
+        }
+        return response.json().then(data => ({ data, link: response.headers.get('link') }));
+      })
+      .then(({ data, link }) => {
+        results.push(...data);
+        const parsed = parseLinkHeader(link);
+        if (parsed.next) {
+          return fetchPage(parsed.next);
+        }
+        return results;
+      });
+  }
+
+  return fetchPage(baseUrl);
+}
+
 function saveFile(content, mimeType, fileName) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -663,21 +705,43 @@ function saveFile(content, mimeType, fileName) {
 }
 
 function exportJSON() {
-  const rows = getExportData();
-  if (!rows.length) {
+  const repo = getRepoFromUrl() || document.getElementById('q')?.value.replaceAll(' ', '');
+  if (!repo) {
     showMsg(t('errorNoDataExport'), 'danger');
     return;
   }
-  saveFile(JSON.stringify(rows, null, 2), 'application/json;charset=utf-8', `active-forks-${getRepoFromUrl() || 'export'}.json`);
+  fetchAllForks(repo)
+    .then(rows => {
+      if (!rows.length) {
+        showMsg(t('errorNoDataExport'), 'danger');
+        return;
+      }
+      saveFile(JSON.stringify(rows, null, 2), 'application/json;charset=utf-8', `active-forks-${repo}.json`);
+    })
+    .catch(error => {
+      showMsg(`${error}. ${t('messageTryAgain')}`, 'danger');
+      console.error(error);
+    });
 }
 
 function exportCSV() {
-  const rows = getExportData();
-  if (!rows.length) {
+  const repo = getRepoFromUrl() || document.getElementById('q')?.value.replaceAll(' ', '');
+  if (!repo) {
     showMsg(t('errorNoDataExport'), 'danger');
     return;
   }
-  saveFile(buildCSV(rows), 'text/csv;charset=utf-8', `active-forks-${getRepoFromUrl() || 'export'}.csv`);
+  fetchAllForks(repo)
+    .then(rows => {
+      if (!rows.length) {
+        showMsg(t('errorNoDataExport'), 'danger');
+        return;
+      }
+      saveFile(buildCSV(rows), 'text/csv;charset=utf-8', `active-forks-${repo}.csv`);
+    })
+    .catch(error => {
+      showMsg(`${error}. ${t('messageTryAgain')}`, 'danger');
+      console.error(error);
+    });
 }
 
 function fetchRateLimit() {
