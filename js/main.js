@@ -7,6 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
   applyTranslations();
   initDT();
 
+  // Handle click on the logo to refresh page preserving URL parameters
+  document.getElementById('logo-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.location.reload();
+  });
+
   // Handle click on the example repo text in search label
   document.addEventListener('click', e => {
     if (e.target && e.target.id === 'example-repo') {
