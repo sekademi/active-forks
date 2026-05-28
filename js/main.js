@@ -51,11 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchData();
   }
 
-  const exportCsvBtn = document.getElementById('export-csv');
-  if (exportCsvBtn) exportCsvBtn.addEventListener('click', exportCSV);
-
-  const exportJsonBtn = document.getElementById('export-json');
-  if (exportJsonBtn) exportJsonBtn.addEventListener('click', exportJSON);
+  document.getElementById('export-csv-page')?.addEventListener('click', exportPageCSV);
+  document.getElementById('export-json-page')?.addEventListener('click', exportPageJSON);
+  document.getElementById('export-csv-all')?.addEventListener('click', exportAllCSV);
+  document.getElementById('export-json-all')?.addEventListener('click', exportAllJSON);
 
   const cancelFetchBtn = document.getElementById('cancel-fetch');
   if (cancelFetchBtn) cancelFetchBtn.addEventListener('click', cancelFetchAllForks);
@@ -306,6 +305,7 @@ function updateDT(data) {
     .rows.add(dataSet)
     .draw();
   makeTableKeyboardScrollable();
+  setExportEnabled(window.latestForks.length > 0);
 }
 
 function renderForkPages(pageMap) {
@@ -473,6 +473,7 @@ function fetchAndShow(repo) {
   repo = repo.replace(/\/+$/, ''); // remove trailing slashes
 
   setLoading(true);
+  setExportEnabled(false);
   window.latestForks = [];
   window.forkTable.clear().draw();
   debugLog('fetchAndShow start', repo);
@@ -566,6 +567,7 @@ function fetchAllForksHandler(repoParam) {
   const signal = window.currentFetchAbortController.signal;
 
   setLoading(true);
+  setExportEnabled(false);
   showCancelFetchButton(true);
   window.latestForks = [];
   window.forkTable.clear().draw();
@@ -642,11 +644,6 @@ function showMsg(msg, type) {
 
   if (type === 'danger') {
     alert_type = 'alert-danger';
-  }
-
-  const footerText = document.getElementById('footer-text');
-  if (footerText) {
-    footerText.innerHTML = '';
   }
 
   document.getElementById('data-body').innerHTML = `
@@ -747,6 +744,11 @@ function setLoading(isLoading) {
   if (spinner) spinner.hidden = !isLoading;
   if (findBtn) findBtn.disabled = isLoading;
   if (fetchAllForksSwitch) fetchAllForksSwitch.disabled = isLoading;
+}
+
+function setExportEnabled(enabled) {
+  const btn = document.getElementById('export-toggle');
+  if (btn) btn.disabled = !enabled;
 }
 
 // --- Rate Limit System ---
@@ -1138,44 +1140,48 @@ function saveFile(content, mimeType, fileName) {
   showToast(t('toastExportSuccess'));
 }
 
-function exportJSON() {
-  const repo = getRepoFromUrl() || document.getElementById('q')?.value.replaceAll(' ', '');
-  if (!repo) {
-    showMsg(t('errorNoDataExport'), 'danger');
-    return;
-  }
-  fetchAllForks(repo)
-    .then(rows => {
-      if (!rows.length) {
-        showMsg(t('errorNoDataExport'), 'danger');
-        return;
+function getVisiblePageData() {
+  if (!window.forkTable) return [];
+  const rows = window.forkTable.rows({page: 'current', search: 'applied'}).data().toArray();
+  return rows.map(row => {
+    const obj = {};
+    window.columnNamesMap.forEach((col, i) => {
+      let val = row[i];
+      if (typeof val === 'string') {
+        val = val.replace(/<[^>]*>/g, '').trim();
       }
-      saveFile(JSON.stringify(rows, null, 2), 'application/json;charset=utf-8', `active-forks-${repo}.json`);
-    })
-    .catch(error => {
-      showMsg(`${error}. ${t('messageTryAgain')}`, 'danger');
-      console.error(error);
+      obj[col[0]] = val;
     });
+    return obj;
+  });
 }
 
-function exportCSV() {
-  const repo = getRepoFromUrl() || document.getElementById('q')?.value.replaceAll(' ', '');
-  if (!repo) {
-    showMsg(t('errorNoDataExport'), 'danger');
-    return;
-  }
-  fetchAllForks(repo)
-    .then(rows => {
-      if (!rows.length) {
-        showMsg(t('errorNoDataExport'), 'danger');
-        return;
-      }
-      saveFile(buildCSV(rows), 'text/csv;charset=utf-8', `active-forks-${repo}.csv`);
-    })
-    .catch(error => {
-      showMsg(`${error}. ${t('messageTryAgain')}`, 'danger');
-      console.error(error);
-    });
+function exportPageCSV() {
+  const data = getVisiblePageData();
+  if (!data.length) { showMsg(t('errorNoDataExport'), 'danger'); return; }
+  const repo = getRepoFromUrl() || document.getElementById('q')?.value?.replaceAll(' ', '') || 'forks';
+  saveFile(buildCSV(data), 'text/csv;charset=utf-8', `${repo}-page.csv`);
+}
+
+function exportPageJSON() {
+  const data = getVisiblePageData();
+  if (!data.length) { showMsg(t('errorNoDataExport'), 'danger'); return; }
+  const repo = getRepoFromUrl() || document.getElementById('q')?.value?.replaceAll(' ', '') || 'forks';
+  saveFile(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `${repo}-page.json`);
+}
+
+function exportAllCSV() {
+  const data = getExportData();
+  if (!data.length) { showMsg(t('errorNoDataExport'), 'danger'); return; }
+  const repo = getRepoFromUrl() || document.getElementById('q')?.value?.replaceAll(' ', '') || 'forks';
+  saveFile(buildCSV(data), 'text/csv;charset=utf-8', `${repo}-all.csv`);
+}
+
+function exportAllJSON() {
+  const data = getExportData();
+  if (!data.length) { showMsg(t('errorNoDataExport'), 'danger'); return; }
+  const repo = getRepoFromUrl() || document.getElementById('q')?.value?.replaceAll(' ', '') || 'forks';
+  saveFile(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `${repo}-all.json`);
 }
 
 function fetchRateLimit() {

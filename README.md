@@ -33,3 +33,5 @@ javascript:(function(){if(window.location.hostname.match(/github.com+/)){var%20a
 This repository is available under either [the Apache License version 2.0](LICENSE) or (at your option) [the European Union Public License version 1.2](LICENSE-ALT).
 
 `SPDX-License-Identifier: Apache-2.0 OR EUPL-1.2`
+
+canlı veri çekmek için burayı kullan: https://docs.github.com/en/rest/repos/forks
