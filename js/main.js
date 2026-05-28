@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initFontSize();
   initLangToggle();
+  initApiSort();
   applyTranslations();
   initDT();
 
@@ -36,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem('font_size_preference');
         localStorage.removeItem('lang');
         localStorage.removeItem('dt_page_length');
+        localStorage.removeItem('api_sort_preference');
         sessionStorage.setItem('show_reset_toast', 'true');
       } catch (e) {
         console.error('localStorage access denied:', e);
@@ -298,6 +300,26 @@ function updateDT(data) {
   // Remove any alerts, if any:
   if ($('.alert')) $('.alert').remove();
 
+  // Set the table sort order based on selected API sort
+  const apiSort = getApiSort();
+  let sortColName = t('colStars');
+  let sortDir = 'desc';
+  if (apiSort === 'newest') {
+    sortColName = t('colLastPush');
+    sortDir = 'desc';
+  } else if (apiSort === 'oldest') {
+    sortColName = t('colLastPush');
+    sortDir = 'asc';
+  }
+
+  const sortColumnIdx = window.columnNamesMap
+    .map(pair => pair[0])
+    .indexOf(sortColName);
+
+  if (sortColumnIdx !== -1 && window.forkTable) {
+    window.forkTable.order([[sortColumnIdx, sortDir]]);
+  }
+
   // Format dataset and redraw DataTable. Use second index for key name
   const dataSet = mapForksToDataTableRows(data || []);
   window.forkTable
@@ -378,11 +400,22 @@ function getColumnNamesMap() {
 function initDT() {
   window.columnNamesMap = getColumnNamesMap();
 
-  // Sort by stars:
-  const sortColName = t('colStars');
+  const apiSort = getApiSort();
+  let sortColName = t('colStars');
+  let sortDir = 'desc';
+  if (apiSort === 'newest') {
+    sortColName = t('colLastPush');
+    sortDir = 'desc';
+  } else if (apiSort === 'oldest') {
+    sortColName = t('colLastPush');
+    sortDir = 'asc';
+  }
+
   const sortColumnIdx = window.columnNamesMap
     .map(pair => pair[0])
     .indexOf(sortColName);
+
+  const initialOrder = sortColumnIdx !== -1 ? [[sortColumnIdx, sortDir]] : [];
 
   // Retrieve page length preference from localStorage
   let savedLength = 100;
@@ -404,6 +437,9 @@ function initDT() {
             if (type === 'display') {
               return howLongAgo(data);
             }
+            if (type === 'sort' || type === 'type') {
+              return data ? Date.parse(data) : 0;
+            }
             return data;
           }
           if (colNM[1] === 'repoLink') {
@@ -416,7 +452,7 @@ function initDT() {
         },
       };
     }),
-    order: [[sortColumnIdx, 'desc']],
+    order: initialOrder,
     // paging: false,
     searchBuilder:{
       // all options at default
@@ -518,7 +554,8 @@ function fetchAndShow(repo) {
 
 function fetchFirstPage(repo, cachedFirstPage) {
   debugLog('fetchFirstPage start', repo);
-  return fetch(`https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100&page=1`)
+  const sort = getApiSort();
+  return fetch(`https://api.github.com/repos/${repo}/forks?sort=${sort}&per_page=100&page=1`)
     .then(response => {
       debugLog('fetchFirstPage response', { repo, status: response.status, ok: response.ok });
       const limit = response.headers.get('x-ratelimit-limit');
@@ -764,7 +801,8 @@ window.localStorageCacheDisabled = false;
 window.PAGE_CACHE_TTL = 60 * 60;
 
 function cacheKeyFor(repo, page) {
-  return `af_cache::${repo}::p${page}`;
+  const sort = getApiSort();
+  return `af_cache::${repo}::s_${sort}::p${page}`;
 }
 
 function setCachedPage(repo, page, data) {
@@ -987,7 +1025,8 @@ function parseLinkHeader(link) {
 }
 
 function fetchAllForks(repo) {
-  const baseUrl = `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`;
+  const sort = getApiSort();
+  const baseUrl = `https://api.github.com/repos/${repo}/forks?sort=${sort}&per_page=100`;
   const results = [];
 
   function fetchPage(url) {
@@ -1050,7 +1089,8 @@ function fetchAllForks(repo) {
 }
 
 function fetchAllForksProgressively(repo, onPage, startPage = 1, signal) {
-  const baseUrl = `https://api.github.com/repos/${repo}/forks?sort=stargazers&per_page=100`;
+  const sort = getApiSort();
+  const baseUrl = `https://api.github.com/repos/${repo}/forks?sort=${sort}&per_page=100`;
   const results = [];
   debugLog('fetchAllForksProgressively start', { repo, startPage });
 
@@ -1205,4 +1245,28 @@ function fetchRateLimit() {
       updateRateLimitUI(core.remaining, core.limit, core.reset);
     })
     .catch(err => console.error('Failed to fetch rate limit:', err));
+}
+
+function getApiSort() {
+  return document.getElementById('api-sort')?.value || 'stargazers';
+}
+
+function initApiSort() {
+  const select = document.getElementById('api-sort');
+  if (!select) return;
+  try {
+    const stored = localStorage.getItem('api_sort_preference');
+    if (stored) {
+      select.value = stored;
+    }
+  } catch (e) {
+    console.error('localStorage access denied:', e);
+  }
+  select.addEventListener('change', () => {
+    try {
+      localStorage.setItem('api_sort_preference', select.value);
+    } catch (e) {
+      console.error('localStorage access denied:', e);
+    }
+  });
 }

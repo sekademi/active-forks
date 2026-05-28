@@ -47,6 +47,10 @@ const translations = {
     rateLimitFooterText: '{remaining}/{limit} remaining · resets in {time}',
     minutes: 'minutes',
     seconds: 'seconds',
+    sortStars: 'Sort: Stars',
+    sortNewest: 'Sort: Newest',
+    sortOldest: 'Sort: Oldest',
+    sortWatchers: 'Sort: Watchers',
   },
   tr: {
     title: 'Aktif GitHub Fork\'ları',
@@ -96,6 +100,10 @@ const translations = {
     rateLimitFooterText: '{remaining}/{limit} kaldı · {time} içinde sıfırlanır',
     minutes: 'dakika',
     seconds: 'saniye',
+    sortStars: 'Sıralama: Yıldız',
+    sortNewest: 'Sıralama: En Yeni',
+    sortOldest: 'Sıralama: En Eski',
+    sortWatchers: 'Sıralama: Takipçi',
   },
   de: {
     title: 'Aktive GitHub-Forks',
@@ -145,6 +153,10 @@ const translations = {
     rateLimitFooterText: '{remaining}/{limit} verfügbar · {time} bis zur Rücksetzung',
     minutes: 'Minuten',
     seconds: 'Sekunden',
+    sortStars: 'Sortierung: Sterne',
+    sortNewest: 'Sortierung: Neueste',
+    sortOldest: 'Sortierung: Älteste',
+    sortWatchers: 'Sortierung: Watcher',
   },
   zh: {
     title: '活跃的 GitHub Forks',
@@ -194,6 +206,10 @@ const translations = {
     rateLimitFooterText: '{remaining}/{limit} 可用 · {time} 后重置',
     minutes: '分钟',
     seconds: '秒',
+    sortStars: '排序: 星标',
+    sortNewest: '排序: 最新创建',
+    sortOldest: '排序: 最早创建',
+    sortWatchers: '排序: 关注者',
   },
 };
 

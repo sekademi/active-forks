@@ -83,6 +83,12 @@
                                 <label for="q" class="form-label" data-i18n="findRepo">Find repository (e.g. <span id="example-repo" class="text-primary text-decoration-underline" style="cursor: pointer;">sekademi/active-forks</span>)</label>
                                 <div class="input-group">
                                     <input id="q" name="q" class="form-control" type="text" spellcheck="false">
+                                    <select id="api-sort" class="form-select flex-grow-0" style="width: auto; min-width: 140px;">
+                                        <option value="stargazers" data-i18n="sortStars" selected>Stars</option>
+                                        <option value="newest" data-i18n="sortNewest">Newest</option>
+                                        <option value="oldest" data-i18n="sortOldest">Oldest</option>
+                                        <option value="watchers" data-i18n="sortWatchers">Watchers</option>
+                                    </select>
                                     <button id="find" onClick="fetchData()" type="button" class="btn btn-primary">
                                         <i id="spinner" class="fa-solid fa-spinner fa-pulse" hidden></i> <span data-i18n="find">Find</span>
                                     </button>
