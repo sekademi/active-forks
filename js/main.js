@@ -1159,7 +1159,16 @@ function getVisiblePageData() {
 function exportFileName(repo, scope, rowCount, ext) {
   const safeName = (repo || 'forks').replace(/\//g, '-');
   const date = new Date().toISOString().slice(0, 10);
-  return `${safeName}_${scope}-${rowCount}rows_${date}.${ext}`;
+  let scopeStr = scope;
+  if (scope === 'page' && window.forkTable) {
+    try {
+      const pageNum = window.forkTable.page.info().page + 1;
+      scopeStr = `page-${pageNum}`;
+    } catch (e) {
+      console.error('Failed to get page number:', e);
+    }
+  }
+  return `${safeName}_${scopeStr}-${rowCount}rows_${date}.${ext}`;
 }
 
 function exportPageCSV() {
