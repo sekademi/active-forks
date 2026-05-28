@@ -299,6 +299,13 @@ function updateDT(data) {
   debugLog('updateDT', { length: Array.isArray(data) ? data.length : 0 });
   window.latestForks = data || [];
 
+  if (data && data.length === 100 && !getFetchAllForksSetting()) {
+    const sort = getApiSort();
+    window.nextPageUrl = `https://api.github.com/repos/${window.currentRepo}/forks?sort=${sort}&per_page=100&page=2`;
+  } else {
+    window.nextPageUrl = null;
+  }
+
   // Remove any alerts, if any:
   if ($('.alert')) $('.alert').remove();
 
@@ -478,6 +485,12 @@ function initDT() {
   const sbContainer = table.searchBuilder.container();
   sbContainer.prependTo(table.table().container());
   sbContainer.addClass('dtsb-collapsed');
+
+  // Listen to draw event and update pagination buttons
+  $('#forkTable').on('draw.dt', () => {
+    updatePaginationButtons();
+  });
+
   makeTableKeyboardScrollable();
 }
 
@@ -513,6 +526,8 @@ function fetchAndShow(repo) {
   setLoading(true);
   setExportEnabled(false);
   window.latestForks = [];
+  window.currentRepo = repo;
+  window.nextPageUrl = null;
   window.forkTable.clear().draw();
   debugLog('fetchAndShow start', repo);
 
@@ -798,6 +813,8 @@ window.cachedRateLimitData = null;
 window.cachedRateLimitReset = 0;
 window.currentFetchAbortController = null;
 window.latestForks = [];
+window.currentRepo = '';
+window.nextPageUrl = null;
 window.localStorageCacheDisabled = false;
 // Cache TTL in seconds (default 1 hour)
 window.PAGE_CACHE_TTL = 60 * 60;
@@ -1271,6 +1288,105 @@ function initApiSort() {
       console.error('localStorage access denied:', e);
     }
   });
+}
+
+function updatePaginationButtons() {
+  if (getFetchAllForksSetting()) return; // Only if load-all is off
+  if (!window.nextPageUrl) return;
+
+  const table = window.forkTable;
+  if (!table) return;
+
+  const info = table.page.info();
+  // Check if we are on the last page of the DataTable
+  if (info.page === info.pages - 1) {
+    // Locate the next page button
+    const nextBtnItem = $('.dt-paging, .dataTables_paginate, #forkTable_paginate').find('.page-item.next, .paginate_button.next');
+    if (nextBtnItem.length) {
+      nextBtnItem.removeClass('disabled');
+      const nextBtnLink = nextBtnItem.is('a') ? nextBtnItem : nextBtnItem.find('a, .page-link');
+      nextBtnLink.removeClass('disabled');
+      
+      // Remove any existing custom click handlers to avoid double-binding
+      nextBtnLink.off('click.customNextPage').on('click.customNextPage', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Change button content to a spinner
+        const originalHtml = nextBtnLink.html();
+        nextBtnLink.html('<i class="fa-solid fa-spinner fa-pulse"></i>');
+        nextBtnItem.addClass('disabled');
+        nextBtnLink.addClass('disabled');
+        
+        fetchNextPageFromPagination(originalHtml, nextBtnItem, nextBtnLink);
+      });
+    }
+  }
+}
+
+function fetchNextPageFromPagination(originalHtml, nextBtnItem, nextBtnLink) {
+  if (!window.nextPageUrl) {
+    nextBtnLink.html(originalHtml);
+    nextBtnItem.removeClass('disabled');
+    nextBtnLink.removeClass('disabled');
+    return;
+  }
+  
+  const url = window.nextPageUrl;
+  debugLog('fetchNextPageFromPagination starting fetch', url);
+  
+  fetch(url, getFetchOptions())
+    .then(response => {
+      const limit = response.headers.get('x-ratelimit-limit');
+      const remaining = response.headers.get('x-ratelimit-remaining');
+      const reset = response.headers.get('x-ratelimit-reset');
+      if (limit !== null && remaining !== null) {
+        updateRateLimitUI(parseInt(remaining, 10), parseInt(limit, 10), parseInt(reset, 10));
+      }
+      if (!response.ok) {
+        throw Error(response.statusText || `HTTP ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      debugLog('fetchNextPageFromPagination got data', { length: data.length });
+      nextBtnLink.html(originalHtml);
+      nextBtnItem.removeClass('disabled');
+      nextBtnLink.removeClass('disabled');
+      
+      if (!Array.isArray(data) || data.length === 0) {
+        window.nextPageUrl = null;
+        showToast(t('toastNoMoreForks'));
+        return;
+      }
+      
+      // Append data to DataTable
+      appendDT(data);
+      
+      // Determine if there is still a next page
+      if (data.length === 100) {
+        const nextPage = Math.floor(window.latestForks.length / 100) + 1;
+        const urlObj = new URL(url);
+        urlObj.searchParams.set('page', String(nextPage));
+        window.nextPageUrl = urlObj.toString();
+      } else {
+        window.nextPageUrl = null;
+      }
+      
+      // Programmatically transition to the next page in DataTable!
+      const table = window.forkTable;
+      table.page('next').draw('page');
+    })
+    .catch(error => {
+      nextBtnLink.html(originalHtml);
+      nextBtnItem.removeClass('disabled');
+      nextBtnLink.removeClass('disabled');
+      const msg = error.toString().indexOf('Forbidden') >= 0
+        ? `${t('errorRateLimit')}. ${t('errorRateLimitMessage')}`
+        : error;
+      showMsg(`${msg}. ${t('messageTryAgain')}`, 'danger');
+      console.error(error);
+    });
 }
 
 function getGitHubToken() {
