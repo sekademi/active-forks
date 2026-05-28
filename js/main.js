@@ -1300,12 +1300,19 @@ function updatePaginationButtons() {
   const info = table.page.info();
   // Check if we are on the last page of the DataTable
   if (info.page === info.pages - 1) {
-    // Locate the next page button
-    const nextBtnItem = $('.dt-paging, .dataTables_paginate, #forkTable_paginate').find('.page-item.next, .paginate_button.next');
-    if (nextBtnItem.length) {
+    // Locate the next page button link
+    const nextBtnLink = $('.dt-paging, .dataTables_paginate, #forkTable_paginate')
+      .find('.next, [data-dt-idx="next"], [aria-label="Next"], .paginate_button.next')
+      .first();
+
+    if (nextBtnLink.length) {
+      const nextBtnItem = nextBtnLink.closest('.page-item').length 
+        ? nextBtnLink.closest('.page-item') 
+        : nextBtnLink;
+
       nextBtnItem.removeClass('disabled');
-      const nextBtnLink = nextBtnItem.is('a') ? nextBtnItem : nextBtnItem.find('a, .page-link');
       nextBtnLink.removeClass('disabled');
+      nextBtnLink.removeAttr('aria-disabled');
       
       // Remove any existing custom click handlers to avoid double-binding
       nextBtnLink.off('click.customNextPage').on('click.customNextPage', (e) => {
