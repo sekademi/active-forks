@@ -1156,32 +1156,38 @@ function getVisiblePageData() {
   });
 }
 
+function exportFileName(repo, scope, rowCount, ext) {
+  const safeName = (repo || 'forks').replace(/\//g, '-');
+  const date = new Date().toISOString().slice(0, 10);
+  return `${safeName}_${scope}-${rowCount}rows_${date}.${ext}`;
+}
+
 function exportPageCSV() {
   const data = getVisiblePageData();
   if (!data.length) { showMsg(t('errorNoDataExport'), 'danger'); return; }
   const repo = getRepoFromUrl() || document.getElementById('q')?.value?.replaceAll(' ', '') || 'forks';
-  saveFile(buildCSV(data), 'text/csv;charset=utf-8', `${repo}-page.csv`);
+  saveFile(buildCSV(data), 'text/csv;charset=utf-8', exportFileName(repo, 'page', data.length, 'csv'));
 }
 
 function exportPageJSON() {
   const data = getVisiblePageData();
   if (!data.length) { showMsg(t('errorNoDataExport'), 'danger'); return; }
   const repo = getRepoFromUrl() || document.getElementById('q')?.value?.replaceAll(' ', '') || 'forks';
-  saveFile(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `${repo}-page.json`);
+  saveFile(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', exportFileName(repo, 'page', data.length, 'json'));
 }
 
 function exportAllCSV() {
   const data = getExportData();
   if (!data.length) { showMsg(t('errorNoDataExport'), 'danger'); return; }
   const repo = getRepoFromUrl() || document.getElementById('q')?.value?.replaceAll(' ', '') || 'forks';
-  saveFile(buildCSV(data), 'text/csv;charset=utf-8', `${repo}-all.csv`);
+  saveFile(buildCSV(data), 'text/csv;charset=utf-8', exportFileName(repo, 'all', data.length, 'csv'));
 }
 
 function exportAllJSON() {
   const data = getExportData();
   if (!data.length) { showMsg(t('errorNoDataExport'), 'danger'); return; }
   const repo = getRepoFromUrl() || document.getElementById('q')?.value?.replaceAll(' ', '') || 'forks';
-  saveFile(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', `${repo}-all.json`);
+  saveFile(JSON.stringify(data, null, 2), 'application/json;charset=utf-8', exportFileName(repo, 'all', data.length, 'json'));
 }
 
 function fetchRateLimit() {
