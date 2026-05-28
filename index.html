@@ -70,6 +70,21 @@
                                         <li><button class="dropdown-item d-flex align-items-center gap-2" data-theme="auto"><i class="fa-solid fa-circle-half-stroke" style="width: 1rem; text-align: center;"></i> <span data-i18n="themeAuto">Auto</span></button></li>
                                     </ul>
                                 </div>
+                                <div class="dropdown">
+                                    <button id="token-toggle" class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" data-i18n-attr="title" data-i18n="githubTokenTitle">
+                                        <i class="fa-solid fa-key"></i>
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-end p-2" style="width: 250px;">
+                                        <div class="mb-2">
+                                            <label for="token-input" class="form-label mb-1" style="font-size: 0.75rem;" data-i18n="githubTokenLabel">GitHub Personal Access Token (PAT)</label>
+                                            <input id="token-input" type="password" class="form-control form-control-sm" placeholder="ghp_..." autocomplete="off">
+                                        </div>
+                                        <div class="d-flex justify-content-end gap-1">
+                                            <button id="token-clear-btn" class="btn btn-sm btn-outline-danger" data-i18n="clear">Clear</button>
+                                            <button id="token-save-btn" class="btn btn-sm btn-primary" data-i18n="save">Save</button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <button id="reset-settings" class="btn btn-sm btn-outline-secondary d-flex align-items-center" data-i18n-attr="title" data-i18n="resetSettings">
                                     <i class="fa-solid fa-arrow-rotate-left"></i>
                                 </button>

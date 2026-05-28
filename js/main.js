@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initFontSize();
   initLangToggle();
   initApiSort();
+  initTokenInput();
   applyTranslations();
   initDT();
 
@@ -38,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem('lang');
         localStorage.removeItem('dt_page_length');
         localStorage.removeItem('api_sort_preference');
+        localStorage.removeItem('github_token');
         sessionStorage.setItem('show_reset_toast', 'true');
       } catch (e) {
         console.error('localStorage access denied:', e);
@@ -555,7 +557,7 @@ function fetchAndShow(repo) {
 function fetchFirstPage(repo, cachedFirstPage) {
   debugLog('fetchFirstPage start', repo);
   const sort = getApiSort();
-  return fetch(`https://api.github.com/repos/${repo}/forks?sort=${sort}&per_page=100&page=1`)
+  return fetch(`https://api.github.com/repos/${repo}/forks?sort=${sort}&per_page=100&page=1`, getFetchOptions())
     .then(response => {
       debugLog('fetchFirstPage response', { repo, status: response.status, ok: response.ok });
       const limit = response.headers.get('x-ratelimit-limit');
@@ -960,7 +962,7 @@ function fetchRateLimitData() {
   }
 
   debugLog('fetchRateLimitData fetching fresh rate limit');
-  const promise = fetch('https://api.github.com/rate_limit')
+  const promise = fetch('https://api.github.com/rate_limit', getFetchOptions())
     .then(response => {
       debugLog('fetchRateLimitData response', { ok: response.ok, status: response.status });
       if (!response.ok) throw new Error('RateLimitFetchFailed');
@@ -1058,7 +1060,7 @@ function fetchAllForks(repo) {
       return Promise.resolve(results);
     }
 
-    return fetch(url)
+    return fetch(url, getFetchOptions())
       .then(response => {
         const limit = response.headers.get('x-ratelimit-limit');
         const remaining = response.headers.get('x-ratelimit-remaining');
@@ -1135,7 +1137,7 @@ function fetchAllForksProgressively(repo, onPage, startPage = 1, signal) {
     }
 
     debugLog('fetchAllForksProgressively network fetch', { repo, page, url });
-    return fetch(url, { signal })
+    return fetch(url, getFetchOptions({ signal }))
       .then(response => {
         const limit = response.headers.get('x-ratelimit-limit');
         const remaining = response.headers.get('x-ratelimit-remaining');
@@ -1265,6 +1267,82 @@ function initApiSort() {
   select.addEventListener('change', () => {
     try {
       localStorage.setItem('api_sort_preference', select.value);
+    } catch (e) {
+      console.error('localStorage access denied:', e);
+    }
+  });
+}
+
+function getGitHubToken() {
+  try {
+    return localStorage.getItem('github_token') || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function getFetchOptions(options = {}) {
+  const token = getGitHubToken();
+  const headers = options.headers ? { ...options.headers } : {};
+  headers['Accept'] = 'application/vnd.github+json';
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return {
+    ...options,
+    headers
+  };
+}
+
+function initTokenInput() {
+  const tokenInput = document.getElementById('token-input');
+  const saveBtn = document.getElementById('token-save-btn');
+  const clearBtn = document.getElementById('token-clear-btn');
+  if (!tokenInput || !saveBtn || !clearBtn) return;
+
+  try {
+    tokenInput.value = localStorage.getItem('github_token') || '';
+  } catch (e) {
+    console.error('localStorage access denied:', e);
+  }
+
+  saveBtn.addEventListener('click', () => {
+    const token = tokenInput.value.trim();
+    try {
+      localStorage.setItem('github_token', token);
+      window.cachedRateLimitPromise = null;
+      window.cachedRateLimitData = null;
+      window.cachedRateLimitReset = 0;
+      fetchRateLimit();
+      showToast(t('toastTokenSaved'));
+      
+      // Close Bootstrap dropdown
+      const toggle = document.getElementById('token-toggle');
+      if (toggle) {
+        const dropdown = bootstrap.Dropdown.getInstance(toggle);
+        if (dropdown) dropdown.hide();
+      }
+    } catch (e) {
+      console.error('localStorage access denied:', e);
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    tokenInput.value = '';
+    try {
+      localStorage.removeItem('github_token');
+      window.cachedRateLimitPromise = null;
+      window.cachedRateLimitData = null;
+      window.cachedRateLimitReset = 0;
+      fetchRateLimit();
+      showToast(t('toastTokenCleared'));
+      
+      // Close Bootstrap dropdown
+      const toggle = document.getElementById('token-toggle');
+      if (toggle) {
+        const dropdown = bootstrap.Dropdown.getInstance(toggle);
+        if (dropdown) dropdown.hide();
+      }
     } catch (e) {
       console.error('localStorage access denied:', e);
     }
